@@ -42,7 +42,7 @@
 		p.configset.store(set, optimize, "Speed")
 
 		local q = Query.new(set)
-		test.isequal("Speed", q:fetch("optimize"))
+		test.isequal("Speed", q.optimize)
 	end
 
 
