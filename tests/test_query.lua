@@ -67,16 +67,18 @@
 ---
 
 	function suite.fetch_simpleValue_onSingleScope()
-		-- local optimize = p.field.get("optimize")
+		local optimize = p.field.get("optimize")
 
-		-- p.configset.addblock(set, { configurations="Debug" })
-		-- p.configset.store(set, optimize, "Debug")
+		local set = p.configset.new()
 
-		-- p.configset.addblock(set, { configurations="Release" })
-		-- p.configset.store(set, optimize, "Speed")
+		p.configset.addblock(set, { configurations="Debug" })
+		p.configset.store(set, optimize, "Debug")
 
-		-- local q = Query.new(set):filter({ configurations="Debug" })
-		-- test.isequal("Debug", q.optimize)
+		p.configset.addblock(set, { configurations="Release" })
+		p.configset.store(set, optimize, "Speed")
+
+		local q = Query.new(set):filter({ configurations="Debug" })
+		test.isequal("Debug", q.optimize)
 	end
 
 
