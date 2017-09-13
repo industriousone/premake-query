@@ -38,7 +38,8 @@
 	function m.new(source, terms)
 		local self =
 		{
-			_configSet = source,
+			_source = source,
+			_configSet = source._cfgset or source,
 			_terms = terms or {}
 		}
 
@@ -56,15 +57,28 @@
 -- don't have a way to enforce that (yet), so you'll just have to be on
 -- your best behavior. If you change a value returned from this method,
 -- you may be changing it for all future calls as well. Make copies before
--- making changes, and be on your best behavior!
+-- making changes!
+--
+-- Note that unlike fetching values by dot notation (e.g. `cfg.name`),
+-- calls to `fetch()` do not cache their results, and always perform a
+-- full lookup.
 ---
 
 	function m.fetch(self, key)
 		local result
 
-		local field = m._field_get(key)
+		local field = p.field.get(key)
+
+		-- TODO: If I haven't already, walk the list of available blocks and
+		-- filter them down to only those that meet my filtering criteria. This
+		-- should only be done once, on the first call to `fetch()`. Note that
+		-- there is no filter precedence like in the old implementation, just
+		-- walk the blocks in order and apply the filters based on whatever
+		-- the current environment happens to be at that point.
 
 		local blocks = self._configSet.blocks
+
+		-- TODO: Put back reverse search for primitive fields?
 
 		local n = #blocks
 		for i = 1, n do
@@ -74,6 +88,14 @@
 			if value ~= nil then
 				result = value
 			end
+		end
+
+		-- HACK: The current implementation stores some values directly on
+		-- the "container", rather than in a configuration block.
+		-- TODO: Store all settings in configuration blocks.
+
+		if not result then
+			result = self._source[key]
 		end
 
 		return result
@@ -94,30 +116,7 @@
 
 
 ---
--- Field helper: Fetch a Field definition by name.
--- TODO: Integrate this into the Field system when that gets moved into a module.
----
-
-	function m._field_get(key)
-		local field = p.field.get(key)
-
-		-- if there is no such field, synthesize a custom definition for a simple
-		-- primitive value, using the provided name
-		if not field then
-			field = p.field.new({
-				name = key,
-				scope = "config",
-				kind = "string"
-			})
-		end
-
-		return field
-	end
-
-
-
----
 -- End of module
---
+---
 
 	return m

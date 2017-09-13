@@ -16,7 +16,10 @@
 -- Setup
 ---
 
+	local set
+
 	function suite.setup()
+		set = p.configset.new()
 	end
 
 
@@ -38,11 +41,42 @@
 	function suite.fetch_simpleValue_noFiltering()
 		local optimize = p.field.get("optimize")
 
-		local set = p.configset.new()
 		p.configset.store(set, optimize, "Speed")
 
 		local q = Query.new(set)
 		test.isequal("Speed", q.optimize)
+	end
+
+
+---
+-- Workaround: make sure values set directly on the source data
+-- object are also accessible. Might need to remove this ability
+-- after underlying data storage gets reworked.
+---
+
+	function suite.fetch_directSetSourceValue()
+		set.name = "Hello"
+
+		local q = Query.new(set)
+		test.isequal("Hello", q.name)
+	end
+
+
+---
+-- Fetch a primitive value from a specific scope.
+---
+
+	function suite.fetch_simpleValue_onSingleScope()
+		-- local optimize = p.field.get("optimize")
+
+		-- p.configset.addblock(set, { configurations="Debug" })
+		-- p.configset.store(set, optimize, "Debug")
+
+		-- p.configset.addblock(set, { configurations="Release" })
+		-- p.configset.store(set, optimize, "Speed")
+
+		-- local q = Query.new(set):filter({ configurations="Debug" })
+		-- test.isequal("Debug", q.optimize)
 	end
 
 
