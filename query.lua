@@ -11,6 +11,24 @@
 
 
 ---
+-- With this approach, the baking step goes away. We should no longer be pre-processing
+-- things, since that limits the ways we can put the data later. And file configuration
+-- objects are evil and need to die.
+---
+
+	p.override(p.main, "bake", function()
+	end)
+
+	p.override(p.main, "postBake", function()
+	end)
+
+	p.override(p.main, "validate", function()
+		p.warnOnce("query-validation", "Validation is not yet implemented for queries")
+	end)
+
+
+
+---
 -- Set up ":" style calling for methods, and "." style accessors for field values.
 ---
 
