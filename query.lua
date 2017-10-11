@@ -7,12 +7,15 @@
 
 	local m = {}
 
+	local Condition = dofile('condition.lua')
+
 	local p = premake
+
 
 
 ---
 -- With this approach, the baking step goes away. We should no longer be pre-processing
--- things, since that limits the ways we can put the data later. And file configuration
+-- things, since that limits the ways we can pull the data later. And file configuration
 -- objects are evil and need to die.
 ---
 
@@ -29,40 +32,48 @@
 
 
 ---
--- Set up ":" style calling for methods, and "." style accessors for field values.
+-- Identify which keys represent containers, e.g. "workspaces", "projects". I'll
+-- use these to trigger container specific behavior, so that I can provide the
+-- illusion that they are just normally configured lists like everything else.
+---
+
+	local containerKeys = {}
+
+	for name, class in pairs(p.container.classes) do
+		local key = class.pluralName
+		containerKeys[key] = key
+	end
+
+
+
+---
+-- Set up ":" style calling for methods.
 ---
 
 	local metatable =
 	{
-		__index = function(self, key)
-			local value = m[key]
-
-			if not value then
-				value = self:fetch(key)
-				rawset(self, key, value)
-			end
-
-			return value
-		end
+		__index = m
 	}
+
 
 
 ---
 -- Construct a new Query object.
 --
 -- Queries are evaluated lazily. They are cheap to create and extend.
+--
+-- @param filter
+--    A list of key-value pairs representing the specifics of the condition,
+--    e.g. `{ "configurations:Debug", "system:Windows" }`.
 ---
 
-	function m.new(source, terms)
-		local self =
-		{
+	function m.new(source, filter)
+		local self = {
 			_source = source,
-			_configSet = source._cfgset or source,
-			_terms = terms or {}
+			_filter = filter or {}
 		}
 
 		setmetatable(self, metatable)
-
 		return self
 	end
 
@@ -76,44 +87,47 @@
 -- your best behavior. If you change a value returned from this method,
 -- you may be changing it for all future calls as well. Make copies before
 -- making changes!
---
--- Note that unlike fetching values by dot notation (e.g. `cfg.name`),
--- calls to `fetch()` do not cache their results, and always perform a
--- full lookup.
 ---
 
 	function m.fetch(self, key)
-		local result
+		local result = self._result
 
-		local field = p.field.get(key)
+		if not result then
+			result = self:_compile()
+			self._result = result
+		end
 
-		-- TODO: If I haven't already, walk the list of available blocks and
-		-- filter them down to only those that meet my filtering criteria. This
-		-- should only be done once, on the first call to `fetch()`. Note that
-		-- there is no filter precedence like in the old implementation, just
-		-- walk the blocks in order and apply the filters based on whatever
-		-- the current environment happens to be at that point.
+		local value = result[key]
+		return value
+	end
 
-		local blocks = self._configSet.blocks
 
-		-- TODO: Put back reverse search for primitive fields?
+
+---
+-- Run the query against the source data and compile the results. This gets
+-- called the first time a value is fetched from this instance.
+---
+
+	function m._compile(self)
+		local result = {}
+
+		local filter = self._filter
+
+		-- Right now, the source data is represented by a ConfigSet or a Context.
+		-- Either way, find the list of associated configuration data blocks.
+		local source = self._source
+		local cfgSet = source._cfgset or source
+		local blocks = cfgSet.blocks
 
 		local n = #blocks
 		for i = 1, n do
 			local block = blocks[i]
-			local value = block[key]
 
-			if value ~= nil then
-				result = value
+			block._condition = block._condition or Condition.new(block._criteria.terms)
+
+			if block._condition:appliesTo(filter, result) then
+				m._merge(result, block)
 			end
-		end
-
-		-- HACK: The current implementation stores some values directly on
-		-- the "container", rather than in a configuration block.
-		-- TODO: Store all settings in configuration blocks.
-
-		if not result then
-			result = self._source[key]
 		end
 
 		return result
@@ -121,13 +135,22 @@
 
 
 
+	function m._merge(result, block)
+		for key, value in pairs(block) do
+			-- TODO: use Field system to do the merge
+			result[key] = value
+		end
+	end
+
+
+
 ---
--- Narrow an existing query with additional filtering terms.
+-- Narrow an existing query with additional filtering filter.
 ---
 
-	function m.filter(self, terms)
-		local mergedTerms = table.merge(self._terms, terms)
-		local q = m.new(self._configSet, mergedTerms)
+	function m.filter(self, filter)
+		filter = table.merge(self._filter, filter)
+		local q = m.new(self._source, filter)
 		return q
 	end
 
