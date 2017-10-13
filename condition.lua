@@ -1,6 +1,10 @@
 ---
 -- query/condition.lua
 --
+-- The Condition class represents the clauses that appear in the `filter` calls
+-- of the scripts, and provides methods to test those clauses against different
+-- query filters.
+--
 -- Author Jason Perkins
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---

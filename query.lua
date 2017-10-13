@@ -8,6 +8,7 @@
 	local m = {}
 
 	local Condition = dofile('condition.lua')
+	local Field = dofile('field.lua')
 
 	local p = premake
 
@@ -137,8 +138,8 @@
 
 	function m._merge(result, block)
 		for key, value in pairs(block) do
-			-- TODO: use Field system to do the merge
-			result[key] = value
+			local field = Field.get(key)
+			result[key] = p.field.merge(field, result[key] or {}, value)
 		end
 	end
 

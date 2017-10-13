@@ -22,6 +22,8 @@
 
 	function suite.setup()
 		set = p.configset.new()
+		p.configset.addblock(set, {})
+
 		qry = Query.new(set)
 	end
 
@@ -99,16 +101,43 @@
 -- from the script.
 ---
 
+	function suite.fetch_onFilterAndDataKeyCollision()
+		p.configset.store(set, p.field.get("configurations"), { "Debug", "Release"})
 
-function suite.fetch_onFilterAndDataKeyCollision()
-	p.configset.store(set, p.field.get("configurations"), { "Debug", "Release"})
+		p.configset.addblock(set, { configurations="Debug" })
+		p.configset.store(set, p.field.get("optimize"), "Debug")
 
-	p.configset.addblock(set, { configurations="Debug" })
-	p.configset.store(set, p.field.get("optimize"), "Debug")
+		qry = qry:filter({ configurations="Debug" })
+		test.isequal("Debug", qry:fetch("optimize"))
+	end
 
-	qry = qry:filter({ configurations="Debug" })
-	test.isequal("Debug", qry:fetch("optimize"))
-end
+
+
+---
+-- Try fetching a simple array of values.
+---
+
+	function suite.fetch_simpleArray()
+		p.configset.store(set, p.field.get("defines"), { "A", "B"})
+		test.isequal({ "A", "B" }, qry:fetch("defines"))
+	end
+
+
+
+---
+-- Try merging an array from multiple scopes.
+---
+
+	function suite.fetch_shouldMergeArrays()
+		p.configset.store(set, p.field.get("defines"), { "A", "B"})
+
+		p.configset.addblock(set, { configurations="Debug" })
+		p.configset.store(set, p.field.get("defines"), { "C", "D" })
+
+		qry = qry:filter({ configurations="Debug" })
+		test.isequal({ "A", "B", "C", "D" }, qry:fetch("defines"))
+	end
+
 
 
 
