@@ -91,14 +91,21 @@
 ---
 
 	function m.fetch(self, key)
-		local result = self._result
+		local value
 
-		if not result then
-			result = self:_compile()
-			self._result = result
+		if containerKeys[key] ~= nil then
+			value = table.extract(self._source[key] or {}, "name")
+
+		else
+			local result = self._result
+			if not result then
+				result = self:_compile()
+				self._result = result
+			end
+
+			value = result[key]
 		end
 
-		local value = result[key]
 		return value
 	end
 
@@ -110,16 +117,24 @@
 ---
 
 	function m._compile(self)
-		local result = {}
+		-- If the query's filter specifies a particular container (e.g.
+		-- `project="Project1"`) only blocks from that specific container
+		-- should be considered.
+		local source = self:_findSourceContainer(self._source)
+		if not source then
+			return {}
+		end
 
-		local filter = self._filter
+		-- Seed the results with the properties of the container (name, etc.)
+		local result = table.shallowcopy(source)
 
-		-- Right now, the source data is represented by a ConfigSet or a Context.
-		-- Either way, find the list of associated configuration data blocks.
-		local source = self._source
+		-- Peek under the hood of Context/ConfigSet to find the list of blocks
 		local cfgSet = source._cfgset or source
 		local blocks = cfgSet.blocks
 
+		local filter = self._filter
+
+		-- Merge together values from all blocks that pass the query's filter
 		local n = #blocks
 		for i = 1, n do
 			local block = blocks[i]
@@ -134,6 +149,23 @@
 		return result
 	end
 
+
+	function m._findSourceContainer(self, source)
+		if not source then
+			return nil
+		end
+
+		for containerType in pairs(containerKeys) do
+			local containersOfType = source[containerType]
+			local targetContainerName = self._filter[containerType]
+			if containersOfType and targetContainerName then
+				local container = containersOfType[targetContainerName]
+				return self:_findSourceContainer(container)
+			end
+		end
+
+		return source
+	end
 
 
 	function m._merge(result, block)
