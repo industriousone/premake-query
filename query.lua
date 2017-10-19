@@ -7,43 +7,74 @@
 
 	local m = {}
 
+	local Condition = dofile('condition.lua')
+	local Field = dofile('field.lua')
+
 	local p = premake
 
 
+
 ---
--- Set up ":" style calling for methods, and "." style accessors for field values.
+-- With this approach, the baking step goes away. We should no longer be pre-processing
+-- things, since that limits the ways we can pull the data later. And file configuration
+-- objects are evil and need to die.
+---
+
+	p.override(p.main, "bake", function()
+	end)
+
+	p.override(p.main, "postBake", function()
+	end)
+
+	p.override(p.main, "validate", function()
+		p.warnOnce("query-validation", "Validation is not yet implemented for queries")
+	end)
+
+
+
+---
+-- Identify which keys represent containers, e.g. "workspaces", "projects". I'll
+-- use these to trigger container specific behavior, so that I can provide the
+-- illusion that they are just normally configured lists like everything else.
+---
+
+	local containerKeys = {}
+
+	for name, class in pairs(p.container.classes) do
+		local key = class.pluralName
+		containerKeys[key] = key
+	end
+
+
+
+---
+-- Set up ":" style calling for methods.
 ---
 
 	local metatable =
 	{
-		__index = function(self, key)
-			local value = m[key]
-
-			if not value then
-				value = self:fetch(key)
-				rawset(self, key, value)
-			end
-
-			return value
-		end
+		__index = m
 	}
+
 
 
 ---
 -- Construct a new Query object.
 --
 -- Queries are evaluated lazily. They are cheap to create and extend.
+--
+-- @param filter
+--    A list of key-value pairs representing the specifics of the condition,
+--    e.g. `{ "configurations:Debug", "system:Windows" }`.
 ---
 
-	function m.new(source, terms)
-		local self =
-		{
-			_configSet = source,
-			_terms = terms or {}
+	function m.new(source, filter)
+		local self = {
+			_source = source,
+			_filter = filter or {}
 		}
 
 		setmetatable(self, metatable)
-
 		return self
 	end
 
@@ -56,23 +87,62 @@
 -- don't have a way to enforce that (yet), so you'll just have to be on
 -- your best behavior. If you change a value returned from this method,
 -- you may be changing it for all future calls as well. Make copies before
--- making changes, and be on your best behavior!
+-- making changes!
 ---
 
 	function m.fetch(self, key)
-		local result
+		local value
 
-		local field = m._field_get(key)
+		if containerKeys[key] ~= nil then
+			value = table.extract(self._source[key] or {}, "name")
 
-		local blocks = self._configSet.blocks
+		else
+			local result = self._result
+			if not result then
+				result = self:_compile()
+				self._result = result
+			end
 
+			value = result[key]
+		end
+
+		return value
+	end
+
+
+
+---
+-- Run the query against the source data and compile the results. This gets
+-- called the first time a value is fetched from this instance.
+---
+
+	function m._compile(self)
+		-- If the query's filter specifies a particular container (e.g.
+		-- `project="Project1"`) only blocks from that specific container
+		-- should be considered.
+		local source = self:_findSourceContainer(self._source)
+		if not source then
+			return {}
+		end
+
+		-- Seed the results with the properties of the container (name, etc.)
+		local result = table.shallowcopy(source)
+
+		-- Peek under the hood of Context/ConfigSet to find the list of blocks
+		local cfgSet = source._cfgset or source
+		local blocks = cfgSet.blocks
+
+		local filter = self._filter
+
+		-- Merge together values from all blocks that pass the query's filter
 		local n = #blocks
 		for i = 1, n do
 			local block = blocks[i]
-			local value = block[key]
 
-			if value ~= nil then
-				result = value
+			block._condition = block._condition or Condition.new(block._criteria.terms)
+
+			if block._condition:appliesTo(filter, result) then
+				m._merge(result, block)
 			end
 		end
 
@@ -80,44 +150,47 @@
 	end
 
 
+	function m._findSourceContainer(self, source)
+		if not source then
+			return nil
+		end
+
+		for containerType in pairs(containerKeys) do
+			local containersOfType = source[containerType]
+			local targetContainerName = self._filter[containerType]
+			if containersOfType and targetContainerName then
+				local container = containersOfType[targetContainerName]
+				return self:_findSourceContainer(container)
+			end
+		end
+
+		return source
+	end
+
+
+	function m._merge(result, block)
+		for key, value in pairs(block) do
+			local field = Field.get(key)
+			result[key] = p.field.merge(field, result[key] or {}, value)
+		end
+	end
+
+
 
 ---
--- Narrow an existing query with additional filtering terms.
+-- Narrow an existing query with additional filtering filter.
 ---
 
-	function m.filter(self, terms)
-		local mergedTerms = table.merge(self._terms, terms)
-		local q = m.new(self._configSet, mergedTerms)
+	function m.filter(self, filter)
+		filter = table.merge(self._filter, filter)
+		local q = m.new(self._source, filter)
 		return q
 	end
 
 
 
 ---
--- Field helper: Fetch a Field definition by name.
--- TODO: Integrate this into the Field system when that gets moved into a module.
----
-
-	function m._field_get(key)
-		local field = p.field.get(key)
-
-		-- if there is no such field, synthesize a custom definition for a simple
-		-- primitive value, using the provided name
-		if not field then
-			field = p.field.new({
-				name = key,
-				scope = "config",
-				kind = "string"
-			})
-		end
-
-		return field
-	end
-
-
-
----
 -- End of module
---
+---
 
 	return m
