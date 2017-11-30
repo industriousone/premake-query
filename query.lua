@@ -90,22 +90,20 @@
 -- making changes!
 ---
 
-	function m.fetch(self, key)
-		local value
-
+	function m:fetch(key)
+		-- Treat requests for containers as a list of container names
 		if containerKeys[key] ~= nil then
-			value = table.extract(self._source[key] or {}, "name")
-
-		else
-			local result = self._result
-			if not result then
-				result = self:_compile()
-				self._result = result
-			end
-
-			value = result[key]
+			local containers = self._source[key]
+			value = table.extract(containers or {}, "name")
+			return value
 		end
 
+		-- First fetch will cause query results to be compiled
+		if not self._result then
+			self._result = self:_compile()
+		end
+
+		value = self._result[key]
 		return value
 	end
 
@@ -116,14 +114,9 @@
 -- called the first time a value is fetched from this instance.
 ---
 
-	function m._compile(self)
-		-- If the query's filter specifies a particular container (e.g.
-		-- `project="Project1"`) only blocks from that specific container
-		-- should be considered.
-		local source = self:_findSourceContainer(self._source)
-		if not source then
-			return {}
-		end
+	function m:_compile()
+		local source = self._source or {}
+		local filter = self._filter
 
 		-- Seed the results with the properties of the container (name, etc.)
 		local result = table.shallowcopy(source)
@@ -131,8 +124,6 @@
 		-- Peek under the hood of Context/ConfigSet to find the list of blocks
 		local cfgSet = source._cfgset or source
 		local blocks = cfgSet.blocks
-
-		local filter = self._filter
 
 		-- Merge together values from all blocks that pass the query's filter
 		local n = #blocks
@@ -150,23 +141,6 @@
 	end
 
 
-	function m._findSourceContainer(self, source)
-		if not source then
-			return nil
-		end
-
-		for containerType in pairs(containerKeys) do
-			local containersOfType = source[containerType]
-			local targetContainerName = self._filter[containerType]
-			if containersOfType and targetContainerName then
-				local container = containersOfType[targetContainerName]
-				return self:_findSourceContainer(container)
-			end
-		end
-
-		return source
-	end
-
 
 	function m._merge(result, block)
 		for key, value in pairs(block) do
@@ -178,15 +152,34 @@
 
 
 ---
--- Narrow an existing query with additional filtering filter.
+-- Narrow an existing query with additional filtering.
 ---
 
-	function m.filter(self, filter)
-		filter = table.merge(self._filter, filter)
-		local q = m.new(self._source, filter)
+	function m:filter(filter)
+		local source = self:_findSourceContainer(self._source, filter)
+		local mergedFilter = table.merge(self._filter, filter)
+
+		local q = m.new(source, mergedFilter)
 		return q
 	end
 
+
+	function m:_findSourceContainer(source, filter)
+		if not source then
+			return nil
+		end
+
+		for containerType in pairs(containerKeys) do
+			local containersOfType = source[containerType]
+			local targetContainerName = filter[containerType]
+			if containersOfType and targetContainerName then
+				local container = containersOfType[targetContainerName]
+				return self:_findSourceContainer(container, filter)
+			end
+		end
+
+		return source
+	end
 
 
 ---
