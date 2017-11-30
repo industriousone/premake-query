@@ -123,7 +123,7 @@
 
 		-- Peek under the hood of Context/ConfigSet to find the list of blocks
 		local cfgSet = source._cfgset or source
-		local blocks = cfgSet.blocks
+		local blocks = cfgSet.blocks or {}
 
 		-- Merge together values from all blocks that pass the query's filter
 		local n = #blocks
@@ -156,7 +156,7 @@
 ---
 
 	function m:filter(filter)
-		local source = self:_findSourceContainer(self._source, filter)
+		local source = self:_findSourceContainer(self._source, filter) or {}
 		local mergedFilter = table.merge(self._filter, filter)
 
 		local q = m.new(source, mergedFilter)
