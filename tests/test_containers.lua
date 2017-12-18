@@ -99,3 +99,22 @@
 		local result = wks:fetch('name')
 		test.isnil(result)
 	end
+
+
+
+---
+-- Should be able to filter from container to configuration.
+---
+
+	function suite.filter_configurationFromContainer()
+		workspace('Workspace1')
+		configurations({ 'Debug', 'Release' })
+		filter({ configurations = 'Debug' })
+		defines({ 'DEBUG' })
+
+		local wks = q:filter({ workspaces = 'Workspace1' })
+		local cfg = wks:filter({ configurations = 'Debug' })
+
+		local result = cfg:fetch('defines')
+		test.isequal({ 'DEBUG' }, result)
+	end

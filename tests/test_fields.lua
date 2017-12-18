@@ -5,11 +5,11 @@
 -- Copyright (c) 2016 Jason Perkins and the Premake project
 ---
 
-	local suite = test.declare("query_fields")
+	local suite = test.declare('query_fields')
 
 	local p = premake
 
-	local Query = require("query")
+	local Query = require('query')
 
 
 ---
@@ -34,8 +34,8 @@
 ---
 
 	function suite.fetch_simpleValue_noFiltering()
-		p.configset.store(set, p.field.get("optimize"), "Speed")
-		test.isequal("Speed", qry:fetch("optimize"))
+		p.configset.store(set, p.field.get('optimize'), 'Speed')
+		test.isequal('Speed', qry:fetch('optimize'))
 	end
 
 
@@ -46,12 +46,12 @@
 ---
 
 	function suite.fetch_excludesNonMatchingBlocks_onGlobalFetch()
-		p.configset.store(set, p.field.get("optimize"), "Speed")
+		p.configset.store(set, p.field.get('optimize'), 'Speed')
 
-		p.configset.addblock(set, { configurations="Release" })
-		p.configset.store(set, p.field.get("optimize"), "Debug")
+		p.configset.addblock(set, { configurations='Release' })
+		p.configset.store(set, p.field.get('optimize'), 'Debug')
 
-		test.isequal("Speed", qry:fetch("optimize"))
+		test.isequal('Speed', qry:fetch('optimize'))
 	end
 
 
@@ -62,14 +62,14 @@
 ---
 
 	function suite.fetch_withSimpleSingleTermFilter()
-		p.configset.addblock(set, { configurations="Debug" })
-		p.configset.store(set, p.field.get("optimize"), "Debug")
+		p.configset.addblock(set, { configurations='Debug' })
+		p.configset.store(set, p.field.get('optimize'), 'Debug')
 
-		p.configset.addblock(set, { configurations="Release" })
-		p.configset.store(set, p.field.get("optimize"), "Speed")
+		p.configset.addblock(set, { configurations='Release' })
+		p.configset.store(set, p.field.get('optimize'), 'Speed')
 
-		qry = qry:filter({ configurations="Debug" })
-		test.isequal("Debug", qry:fetch("optimize"))
+		qry = qry:filter({ configurations='Debug' })
+		test.isequal('Debug', qry:fetch('optimize'))
 	end
 
 
@@ -80,18 +80,18 @@
 ---
 
 	function suite.fetch_canFilterAgainstDataValues()
-		p.configset.store(set, p.field.get("kind"), "SharedLib")
+		p.configset.store(set, p.field.get('kind'), 'SharedLib')
 
-		p.configset.addblock(set, { kind="StaticLib" })
-		p.configset.store(set, p.field.get("optimize"), "Speed")
+		p.configset.addblock(set, { kind='StaticLib' })
+		p.configset.store(set, p.field.get('optimize'), 'Speed')
 
-		p.configset.addblock(set, { kind="SharedLib" })
-		p.configset.store(set, p.field.get("optimize"), "Debug")
+		p.configset.addblock(set, { kind='SharedLib' })
+		p.configset.store(set, p.field.get('optimize'), 'Debug')
 
-		p.configset.addblock(set, { kind="ConsoleApp" })
-		p.configset.store(set, p.field.get("optimize"), "Size")
+		p.configset.addblock(set, { kind='ConsoleApp' })
+		p.configset.store(set, p.field.get('optimize'), 'Size')
 
-		test.isequal("Debug", qry:fetch("optimize"))
+		test.isequal('Debug', qry:fetch('optimize'))
 	end
 
 
@@ -102,13 +102,13 @@
 ---
 
 	function suite.fetch_onFilterAndDataKeyCollision()
-		p.configset.store(set, p.field.get("configurations"), { "Debug", "Release"})
+		p.configset.store(set, p.field.get('configurations'), { 'Debug', 'Release'})
 
-		p.configset.addblock(set, { configurations="Debug" })
-		p.configset.store(set, p.field.get("optimize"), "Debug")
+		p.configset.addblock(set, { configurations='Debug' })
+		p.configset.store(set, p.field.get('optimize'), 'Debug')
 
-		qry = qry:filter({ configurations="Debug" })
-		test.isequal("Debug", qry:fetch("optimize"))
+		qry = qry:filter({ configurations='Debug' })
+		test.isequal('Debug', qry:fetch('optimize'))
 	end
 
 
@@ -118,8 +118,8 @@
 ---
 
 	function suite.fetch_simpleArray()
-		p.configset.store(set, p.field.get("defines"), { "A", "B"})
-		test.isequal({ "A", "B" }, qry:fetch("defines"))
+		p.configset.store(set, p.field.get('defines'), { 'A', 'B'})
+		test.isequal({ 'A', 'B' }, qry:fetch('defines'))
 	end
 
 
@@ -129,19 +129,38 @@
 ---
 
 	function suite.fetch_shouldMergeArrays()
-		p.configset.store(set, p.field.get("defines"), { "A", "B"})
+		p.configset.store(set, p.field.get('defines'), { 'A', 'B'})
 
-		p.configset.addblock(set, { configurations="Debug" })
-		p.configset.store(set, p.field.get("defines"), { "C", "D" })
+		p.configset.addblock(set, { configurations='Debug' })
+		p.configset.store(set, p.field.get('defines'), { 'C', 'D' })
 
-		qry = qry:filter({ configurations="Debug" })
-		test.isequal({ "A", "B", "C", "D" }, qry:fetch("defines"))
+		qry = qry:filter({ configurations='Debug' })
+		test.isequal({ 'A', 'B', 'C', 'D' }, qry:fetch('defines'))
+	end
+
+
+
+---
+-- If no value is set for a simple value field, should return nil.
+---
+
+	function suite.fetch_shouldReturnNil_whenNoSimpleValueSet()
+		test.isnil(qry:fetch('language'))
+	end
+
+
+
+---
+-- If no value is set for a list field, should return an empty list.
+---
+
+	function suite.fetch_shouldReturnEmptyCollection_whenNoCollectionValueSet()
+		test.isequal({ }, qry:fetch('defines'))
 	end
 
 
 
 
 -- TODO: Test wildcards in the configset filter
--- TODO: Test wildcards in the query filter
 -- TODO: Test `not`
 -- TODO: Test `or`

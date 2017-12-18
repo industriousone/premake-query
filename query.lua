@@ -104,6 +104,12 @@
 		end
 
 		value = self._result[key]
+
+		-- If no value present, return an appropriate empty value
+		if not value then
+			value = Field.emptyValue(key)
+		end
+
 		return value
 	end
 
