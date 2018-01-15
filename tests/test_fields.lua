@@ -12,6 +12,11 @@
 	local Query = require('query')
 
 
+
+
+--[[
+
+
 ---
 -- Setup
 --
@@ -26,6 +31,14 @@
 
 		qry = Query.new(set)
 	end
+
+
+	function suite.fetch_primitive_globalScope()
+		Settings:new()
+		settings:put('defines', { 'A', 'B' })
+
+	end
+
 
 
 
@@ -164,3 +177,5 @@
 -- TODO: Test wildcards in the configset filter
 -- TODO: Test `not`
 -- TODO: Test `or`
+
+]]

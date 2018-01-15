@@ -17,6 +17,8 @@
 	local Query = require('query')
 
 
+	--[[
+
 ---
 -- Setup
 ---
@@ -118,3 +120,5 @@
 		local result = cfg:fetch('defines')
 		test.isequal({ 'DEBUG' }, result)
 	end
+
+]]
