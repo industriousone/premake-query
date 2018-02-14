@@ -1,24 +1,77 @@
----
+	---
 -- query/query.lua
+--
+-- Queries process a list of configuration blocks, return values from those blocks
+-- which meet certain criteria, or "filters". A filter is a key-value collection
+-- of values that need to be matched by the filtering terms associated with each
+-- configuration block.
+--
+--     -- Include only blocks from the 'Debug' configuration of 'Workspace1'
+--     { workspace='Workspace1', configurations='Debug' }
+--
+-- Queries use two different kinds of filters: "open" and "closed". An open term
+-- will pass if it matches the corresponding term on a configuration block, or
+-- if there is no corresponding term on the configuration block (i.e. nil). It
+-- will fail if there is a conflicting value on a configuration block. If the
+-- the above query is treated as "open", it will match blocks with no workspace
+-- or configuration (i.e. global scope), blocks with a matching workspace but
+-- no configuration (i.e. workspace scope), blocks with a matching configuration
+-- but no workspace, and blocks which match both workspace and configuration.
+--
+-- A closed term will pass only if the configuration block contains a match for
+-- the term. If the above filter is treated as closed, it will only match blocks
+-- which match both the workspace and the configuration.
 --
 -- Author Jason Perkins
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
-	local m = {}
 
 	local Condition = dofile('condition.lua')
 	local Field = dofile('field.lua')
 
 	local p = premake
 
+	local Query = {}
+	local m = {}
+
 
 
 ---
--- With this approach, the baking step goes away. We should no longer be pre-processing
--- things, since that limits the ways we can pull the data later. And file configuration
--- objects are evil and need to die.
+-- With this approach, the original baking process goes away. We should no longer be
+-- pre-processing things, since that limits the ways we can pull and use the data later.
+-- And file configuration objects are evil and need to die.
+--
+-- The container hierarchy will also go away, at least as a physical data structure.
+-- Instead, configuration data will be represented by a flat list of blocks, with any
+-- scope restrictions listed directly in the filters. As an example, this is what
+-- the container-oriented configuration data looks like currently:
+--
+--   [ Global container ]
+--       [ Block #1 : filter {} ]
+--       [ Workspace container : name "MyWorkspace" ]
+--           [ Block #2 : filter {} ]
+--           [ Block #3 : filter { "configuration:Debug"}]
+--           [ Project container : name "MyProject"]
+--               [ Block #4 : filter {} ]
+--               [ Block #5 : filter { "configuration:Debug"}]
+--
+-- Going forward, I believe I can make things simpler and more flexible if I make it
+-- look like this instead:
+--
+--   [ Block #1 : filter {} ]
+--   [ Block #2 : filter { "workspaces:MyWorkspace" } ]
+--   [ Block #3 : filter { "workspaces:MyWorkspace", "configurations:Debug" } ]
+--   [ Block #4 : filter { "workspaces:MyWorkspace", "projects:MyProject" } ]
+--   [ Block #5 : filter { "workspaces:MyWorkspace", "projects:MyProject", "configurations:Debug" } ]
+--
+-- To avoid rewriting the entire container/API system *right now*, I use the first
+-- query compile as a trigger to convert the data from the first format to the second.
 ---
+
+	local numGlobalBuiltInBlocks = #p.api.scope.global.blocks
+	local masterBlockList = nil
+
 
 	p.override(p.main, "bake", function()
 	end)
@@ -30,47 +83,52 @@
 		p.warnOnce("query-validation", "Validation is not yet implemented for queries")
 	end)
 
+	p.override(p.api, "reset", function(base)
+		base()
+		masterBlockList = nil
+
+		-- Trim off any configuration blocks that were added to the global scope by
+		-- unit tests. This makes testing of global state changes much easier.
+		-- TODO: Build this into the API module.
+
+		numGlobalBlocks = #p.api.scope.global.blocks
+
+		for i = numGlobalBlocks, numGlobalBuiltInBlocks, -1 do
+			table.remove(p.api.scope.global.blocks, i)
+		end
+	end)
 
 
----
--- Set up ":" style calling for methods.
----
+	function m.buildMasterBlockList()
+		local blockList = {}
+		local scopeTerms = {}
 
-	local metatable =
-	{
-		__index = m
-	}
+		m.addBlocksFromContainer(blockList, p.api.scope.global, scopeTerms)
+
+		return blockList
+	end
 
 
+	function m.addBlocksFromContainer(blockList, container, scopeTerms)
+		local blocks = container.blocks
+		local n = #blocks
 
----
--- Construct a new Query object.
---
--- Queries are evaluated lazily. They are cheap to create and extend.
---
--- @param dataSource
---    The collection of configuration setting blocks holding the values to be queried.
---    If not set, defaults to `premake.api.scope.global`.
--- @param filter
---    A list of key-value pairs representing the specifics of the condition,
---    e.g. `{ configurations = 'Debug', system = 'Windows' }`.
--- @return
---    A new Query instance.
---
--- TODO: There is a lot of overlap between ConfigSet/Context and Query right now. I'd
---       like to convert ConfigSet into a dumb list of data blocks, and drop Context
---       entirely, at some point.
----
+		for i = 1, n do
+			local block = blocks[i]
 
-	function m.new(self, dataSource, filter)
-		local self = {
-			_dataSource = dataSource or p.api.scope.global,
-			_filter = filter or {},
-			_result = nil
-		}
+			local criteria = block._criteria
+			criteria.terms = table.join(criteria.terms, scopeTerms)
 
-		setmetatable(self, metatable)
-		return self
+			table.insert(blockList, block)
+		end
+
+		for class in p.container.eachChildClass(container.class) do
+			for child in p.container.eachChild(container, class) do
+				local localScopeTerms = table.arraycopy(scopeTerms)
+				table.insert(localScopeTerms, class.pluralName .. ':' .. child.name)
+				m.addBlocksFromContainer(blockList, child, localScopeTerms)
+			end
+		end
 	end
 
 
@@ -86,27 +144,34 @@
 ---
 
 	function m:fetch(key)
-		local value
+		local private = self[m]
 
-		value = nil
-
-		-- -- Treat requests for containers as a list of container names
-		-- if containerKeys[key] ~= nil then
-		-- 	local containers = self._source[key]
-		-- 	value = table.extract(containers or {}, "name")
-		-- 	return value
-		-- end
-
-		-- First fetch will cause query results to be compiled
-		if self._result == nil then
-			self._result = self:_compile()
+		-- The first fetch will cause query results to be compiled
+		if private.result == nil then
+			private.result = m.compile(self)
 		end
 
-		value = self._result[key]
+
+		local value = nil
+
+		-- -- -- Treat requests for containers as a list of container names
+		-- -- if containerKeys[key] ~= nil then
+		-- -- 	local containers = self._source[key]
+		-- -- 	value = table.extract(containers or {}, "name")
+		-- -- 	return value
+		-- -- end
+
+		-- -- First fetch will cause query results to be compiled
+		-- if self._result == nil then
+		-- 	self._result = self:_compile()
+		-- end
+
+		-- value = self._result[key]
 
 		-- If no value present, return an appropriate empty value
 		if not value then
-			value = Field.emptyValue(key)
+			local field = Field:get(key)
+			value = field:emptyValue()
 		end
 
 		return value
@@ -119,24 +184,86 @@
 -- called the first time a value is fetched from this instance.
 ---
 
-	function m:_compile()
-		local source = self._dataSource or {}
-		local filter = self._filter or {}
-
+	function m:compile()
 		local result = {}
 
-		-- Use my insider knowledge to peek under the hood of the data source and
-		-- find the list of configuration data blocks. The way things are currently
-		-- set up, the data source will always be a container's configuration set,
-		-- or a context built from one.
+		-- The first compile triggers the preprocessing of the configuration
+		-- container hierarchy into a flat, decorated list of blocks.
 
-		local container = source._cfgset or source
-		local blocks = container.blocks or {}
+		if masterBlockList == nil then
+			masterBlockList = m:buildMasterBlockList()
+		end
 
-		-- Compare the terms on each block with my filter, and merge together all
-		-- of the blocks that pass the test. Again, using insider knowledge of the
-		-- block data structure for now.
 
+-- Let's assume that I'm given an un-baked data source, since I've turned off
+-- baking above. So I will always get a container of some kind.
+
+		-- result = self:_mergeContainer(result, self._dataSource)
+
+
+
+		-- -- Use my insider knowledge to peek under the hood of the data source and
+		-- -- find the list of configuration data blocks. The way things are currently
+		-- -- set up, the data source will always be a container's configuration set,
+		-- -- or a context built from one.
+
+		-- local container = dataSource._cfgset or dataSource
+		-- local blocks = container.blocks or {}
+
+		-- -- Compare the terms on each block with my filters, and merge together all
+		-- -- of the blocks that pass the test. Again, using insider knowledge of the
+		-- -- block data structure for now.
+
+		-- local n = #blocks
+
+		-- for i = 1, n do
+		-- 	local block = blocks[i]
+
+		-- 	-- If this is the first time I've encountered this block, wrap its list
+		-- 	-- of terms up in a Condition instance, which I'll then use to test.
+		-- 	block._condition = block._condition or Condition:new(block._criteria.terms)
+
+		-- 	if block._condition:appliesTo(result, open, closed) then
+		-- 		m._merge(result, block)
+		-- 	end
+		-- end
+
+		return result
+	end
+
+
+	function m:_mergeContainer(result, container)
+		result = self:_mergeBlocks(result, container.blocks)
+		result = m:_mergeChildContainers(result, container)
+		return result
+	end
+
+
+
+	function m:_mergeChildContainers(result, parentContainer)
+		for childClass in container.eachChildClass(parentContainer.class) do
+			for child in container.eachChild(parentContainer, childClass) do
+
+				-- I have `clildClass`, which has `name` and `pluralName`
+				-- I have `child`, which has `name`
+
+				-- The condition is "workspaces" and name
+
+				local key = childClass.pluralName  -- e.g. "projects"
+				local value = child.name  -- e.g. "MyProject"
+
+				-- closed: (self._closed[key] == value)
+				-- open: (self._open[key] == value)
+
+
+
+
+			end
+		end
+	end
+
+
+	function m:_mergeBlocks(result, blocks)
 		local n = #blocks
 
 		for i = 1, n do
@@ -144,10 +271,10 @@
 
 			-- If this is the first time I've encountered this block, wrap its list
 			-- of terms up in a Condition instance, which I'll then use to test.
-			block._condition = block._condition or Condition.new(block._criteria.terms)
+			block._condition = block._condition or Condition:new(block._criteria.terms)
 
-			if block._condition:appliesTo(filter, result) then
-				m._merge(result, block)
+			if block._condition:appliesTo(result, self._open, self._closed) then
+				self:_mergeBlock(result, block)
 			end
 		end
 
@@ -155,18 +282,39 @@
 	end
 
 
-
----
--- Merge a block of configuration settings into a result set.
----
-
-	function m._merge(result, block)
+	function m:_mergeBlock(result, block)
 		for key, value in pairs(block) do
 			local field = Field.get(key)
 			result[key] = p.field.merge(field, result[key] or {}, value)
 		end
 	end
 
+
+
+---
+-- Narrow an existing query with additional filtering.
+--
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance with the additional filtering applied.
+---
+
+	function m:filter(open, closed)
+		return self
+		-- open = table.merge(self._open, open)
+		-- closed = table.merge(self._closed, closed)
+
+		-- -- If a term has moved from open to closed, remove it from open
+		-- for key, _ in pairs(closed) do
+		-- 	open[key] = nil
+		-- end
+
+		-- local qry = m:new(self._dataSource, open, closed)
+		-- return qry
+	end
 
 
 
@@ -333,8 +481,92 @@
 
 
 
+
+---
+-- Export public methods.
+---
+
+	local metatable =
+	{
+		__index = {
+			fetch = m.fetch,
+			filter = m.filter
+		}
+	}
+
+
+
+---
+-- Construct a new Query object.
+--
+-- Queries are evaluated lazily. They are cheap to create and extend.
+--
+-- @param dataSource
+--    The collection of configuration setting blocks holding the values to be queried.
+--    If not set, defaults to `premake.api.scope.global`.
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance.
+---
+
+	function Query:new(open, closed)
+		local newInstance = {}
+
+		newInstance[m] = {
+			-- open = open or {},
+			-- closed = closed or {},
+			result = nil
+		}
+
+		setmetatable(newInstance, metatable)
+		return newInstance
+	end
+
+
+
+---
+-- Write the full list of blocks out to the console for debugging.
+--
+-- TODO: Move this into the API module.
+--
+-- @param targetFieldName
+--    Optional; if set, will only show values for this specific field.
+---
+
+	function Query:visualizeSourceData(targetFieldName)
+		local eol = '\r\n'
+
+		if masterBlockList == nil then
+			masterBlockList = m:buildMasterBlockList()
+		end
+
+		for i = 1, #masterBlockList do
+			local block = masterBlockList[i]
+			local criteria = block._criteria
+
+			local terms = table.concat(criteria.terms, ', ')
+			local text = string.format('BLOCK %d: { %s }%s', i, terms, eol)
+			io.stdout:write(text)
+
+			for key, value in pairs(block) do
+				if targetFieldName == nil or targetFieldName == key then
+					local field = Field:get(key)
+					text = string.format('  %s: %s%s', field.name, field:toString(value), eol)
+					io.stdout:write(text)
+				end
+			end
+
+			io.stdout:write(eol)
+		end
+	end
+
+
+
 ---
 -- End of module
 ---
 
-	return m
+	return Query

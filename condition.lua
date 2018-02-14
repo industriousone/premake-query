@@ -33,7 +33,7 @@
 --    e.g. `{ configurations = "Debug", system = "Windows" }`.
 ---
 
-	function m.new(terms)
+	function m:new(terms)
 		local self = {
 			_clauses = m._compileTermsToClauses(terms or {})
 		}
@@ -83,31 +83,52 @@
 ---
 -- Test this condition against a set of data.
 --
--- @param filter
---    A set of key-value pairs, representing the current query filter. These
---    values take precedence over the data pairs.
 -- @param data
 --    A set of key-value pairs, representing the state to be tested against.
 --    These will be considered in the case that the target value is not specified
 --    by the filter.
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
 ---
 
-	function m.appliesTo(self, filter, data)
+	function m:appliesTo(data, open, closed)
 		for key, clause in pairs(self._clauses) do
-			local dataValue = filter[key] or data[key]
+			local closedValue = closed[key]
+			local openValue = open[key]
 
-			if dataValue == nil then
-				return false
-			end
-
-			if type(dataValue) == "table" then
-				return false
-			end
+			-- TODO: I need to reverse closedValue checks...
 
 			local n = #clause
+
+			-- Closed filter values must be matched by the block
+			if closedValue then
+				if n == 0 then
+					return false
+				end
+
+				for i = 1, n do
+					local blockFilterPattern = clause[i]
+					if not closedValue:match(blockFilterPattern) then
+						return false
+					end
+				end
+			end
+
+			-- Terms listed on the block must match something in the filters to pass
 			for i = 1, n do
-				local value = clause[i]
-				if not value:match(dataValue) then
+				local blockFilterPattern = clause[i]
+
+				local matched = false
+
+				if openValue ~= nil and openValue:match(blockFilterPattern) then
+					matched = true
+				elseif closedValue ~= nil and closedValue:match(blockFilterPattern) then
+					matched = true
+				end
+
+				if not matched then
 					return false
 				end
 			end

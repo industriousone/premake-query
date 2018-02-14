@@ -8,10 +8,15 @@
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
-	local m = {}
-
 	local p = premake
 
+	local Field = {}
+	local m = {}
+
+
+	local metatable = {
+		__index = m
+	}
 
 
 ---
@@ -19,11 +24,10 @@
 -- this will return nil. For collections, it will return an empty collection.
 ---
 
-	function m.emptyValue(name)
+	function m:emptyValue()
 		local value = nil
 
-		local field = p.field.get(name)
-		if field and p.field.merges(field) then
+		if p.field.merges(self) then
 			value = {}
 		end
 
@@ -33,28 +37,50 @@
 
 
 ---
+-- Turn a field value into a string for visualization during debugging.
+-- TODO: Needs some work, obviously. Should delegate to the field type chain.
+---
+
+	function m:toString(value)
+		local result = tostring(value)
+
+		if type(value) == 'string' then
+			result = '"' .. result .. '"'
+		end
+
+		return result
+	end
+
+
+
+---
 -- Retrieve a field by name. If no such field exists, synthesize a simple
 -- assignment-only field on the fly.
 ---
 
-	function m.get(name)
+	function Field:get(name)
 		local field = p.field.get(name)
 
 		if field == nil then
 			field = p.field.new({
 				name = name,
-				scope = "config",
-				kind = "string"  -- TODO: should be "object" but that is treated like a table now?
+				scope = 'config',
+				-- TODO: should be 'object' but that is treated like a table now? I want
+				-- a type that will simply copy the reference and not try to merge.
+				kind = 'string'
 			})
+		end
+
+		if getmetatable(field) == nil then
+			setmetatable(field, metatable)
 		end
 
 		return field
 	end
 
 
-
 ---
 -- End of module
 ---
 
-	return m
+	return Field

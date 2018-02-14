@@ -7,16 +7,12 @@
 
 	local suite = test.declare('query')
 
-	local p = premake
-
 	local Query = require('query')
 
 
 
 ---
--- Setup
---
--- For now, queries are built on the existing `configset` data structure.
+-- Setup and teardown.
 ---
 
 
@@ -25,10 +21,6 @@
 
 	function suite.setup()
 		qry = Query:new()
-	end
-
-	function suite.teardown()
-		prebuildmessage(nil)
 	end
 
 
@@ -67,12 +59,66 @@
 
 
 
+-- ---
+-- -- A query with no filters should fetch values from the global scope.
+-- ---
+
+	function suite.fetch_returnsPrimitive_fromGlobalScopeWithNoFilters()
+		rtti('On')
+		local result = qry:fetch('rtti')
+		test.isequal('On', result)
+	end
+
+
+
 ---
--- A query with no filters should fetch values from the global scope. I'm using
--- knowledge of Premake internals to query field I believe should be set.
+-- Should be able to fetch values set in a workspace scope.
 ---
 
-	function suite.fetch_returnsPrimitive_fromGlobalScopeOnNoFilters()
-		local result = qry:fetch('rtti')
-		test.isequal('Default', result)
+	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
+		workspace('MyWorkspace')
+		rtti('On')
+		project('MyProject')
+		rtti('Off')
+
+		local result = qry
+			:filter({ workspace='MyWorkspace' })
+			:fetch('rtti')
+
+		test.isequal('On', result)
 	end
+
+
+
+-- ---
+-- -- When the workspace scope is specified as as open filter, values from the
+-- -- global scope should be inherited.
+-- ---
+
+-- 	function suite.fetch_inheritsGlobalInWorkspace_onOpenFilter()
+-- 		workspace('MyWorkspace')
+
+-- 		local result = qry
+-- 			:filter({ workspace='MyWorkspace' }, {})
+-- 			:fetch('rtti')
+
+-- 		test.isequal('Default', result)
+-- 	end
+
+
+
+-- ---
+-- -- When the workspace scope if specified as as closed filter, values from the
+-- -- global scope should not be inherited.
+-- ---
+
+-- 	function suite.fetch_doesNotInheritGlobalInWorkspace_onClosedFilter()
+-- 		workspace('MyWorkspace')
+
+-- 		local result = qry
+-- 			:filter({}, { workspace='MyWorkspace' })
+-- 			:fetch('rtti')
+
+-- 		test.isnil(result)
+-- 	end
+
