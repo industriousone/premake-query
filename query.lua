@@ -1,4 +1,4 @@
-	---
+---
 -- query/query.lua
 --
 -- Queries process a list of configuration blocks, return values from those blocks
@@ -26,14 +26,14 @@
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
-
-	local Condition = dofile('condition.lua')
-	local Field = dofile('field.lua')
-
 	local p = premake
 
 	local Query = {}
 	local m = {}
+
+	local Condition = dofile('./condition.lua')
+	local Field = dofile('./field.lua')
+	local Oven = dofile('./oven.lua')
 
 
 
@@ -41,37 +41,7 @@
 -- With this approach, the original baking process goes away. We should no longer be
 -- pre-processing things, since that limits the ways we can pull and use the data later.
 -- And file configuration objects are evil and need to die.
---
--- The container hierarchy will also go away, at least as a physical data structure.
--- Instead, configuration data will be represented by a flat list of blocks, with any
--- scope restrictions listed directly in the filters. As an example, this is what
--- the container-oriented configuration data looks like currently:
---
---   [ Global container ]
---       [ Block #1 : filter {} ]
---       [ Workspace container : name "MyWorkspace" ]
---           [ Block #2 : filter {} ]
---           [ Block #3 : filter { "configuration:Debug"}]
---           [ Project container : name "MyProject"]
---               [ Block #4 : filter {} ]
---               [ Block #5 : filter { "configuration:Debug"}]
---
--- Going forward, I believe I can make things simpler and more flexible if I make it
--- look like this instead:
---
---   [ Block #1 : filter {} ]
---   [ Block #2 : filter { "workspaces:MyWorkspace" } ]
---   [ Block #3 : filter { "workspaces:MyWorkspace", "configurations:Debug" } ]
---   [ Block #4 : filter { "workspaces:MyWorkspace", "projects:MyProject" } ]
---   [ Block #5 : filter { "workspaces:MyWorkspace", "projects:MyProject", "configurations:Debug" } ]
---
--- To avoid rewriting the entire container/API system *right now*, I use the first
--- query compile as a trigger to convert the data from the first format to the second.
 ---
-
-	local numGlobalBuiltInBlocks = #p.api.scope.global.blocks
-	local masterBlockList = nil
-
 
 	p.override(p.main, "bake", function()
 	end)
@@ -83,53 +53,6 @@
 		p.warnOnce("query-validation", "Validation is not yet implemented for queries")
 	end)
 
-	p.override(p.api, "reset", function(base)
-		base()
-		masterBlockList = nil
-
-		-- Trim off any configuration blocks that were added to the global scope by
-		-- unit tests. This makes testing of global state changes much easier.
-		-- TODO: Build this into the API module.
-
-		numGlobalBlocks = #p.api.scope.global.blocks
-
-		for i = numGlobalBlocks, numGlobalBuiltInBlocks, -1 do
-			table.remove(p.api.scope.global.blocks, i)
-		end
-	end)
-
-
-	function m.buildMasterBlockList()
-		local blockList = {}
-		local scopeTerms = {}
-
-		m.addBlocksFromContainer(blockList, p.api.scope.global, scopeTerms)
-
-		return blockList
-	end
-
-
-	function m.addBlocksFromContainer(blockList, container, scopeTerms)
-		local blocks = container.blocks
-		local n = #blocks
-
-		for i = 1, n do
-			local block = blocks[i]
-
-			local criteria = block._criteria
-			criteria.terms = table.join(criteria.terms, scopeTerms)
-
-			table.insert(blockList, block)
-		end
-
-		for class in p.container.eachChildClass(container.class) do
-			for child in p.container.eachChild(container, class) do
-				local localScopeTerms = table.arraycopy(scopeTerms)
-				table.insert(localScopeTerms, class.pluralName .. ':' .. child.name)
-				m.addBlocksFromContainer(blockList, child, localScopeTerms)
-			end
-		end
-	end
 
 
 
@@ -187,12 +110,7 @@
 	function m:compile()
 		local result = {}
 
-		-- The first compile triggers the preprocessing of the configuration
-		-- container hierarchy into a flat, decorated list of blocks.
-
-		if masterBlockList == nil then
-			masterBlockList = m:buildMasterBlockList()
-		end
+		local dataBlocks = Oven:flattenedBlockList()
 
 
 -- Let's assume that I'm given an un-baked data source, since I've turned off
@@ -539,12 +457,10 @@
 	function Query:visualizeSourceData(targetFieldName)
 		local eol = '\r\n'
 
-		if masterBlockList == nil then
-			masterBlockList = m:buildMasterBlockList()
-		end
+		local dataBlocks = Oven:flattenedBlockList()
 
-		for i = 1, #masterBlockList do
-			local block = masterBlockList[i]
+		for i = 1, #dataBlocks do
+			local block = dataBlocks[i]
 			local criteria = block._criteria
 
 			local terms = table.concat(criteria.terms, ', ')
