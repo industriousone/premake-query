@@ -44,7 +44,8 @@
 
 	local m = {}
 
-	local dataBlocks = nil
+	local flattenedDataBlocks = nil
+
 
 
 ---
@@ -54,43 +55,47 @@
 -- makes testing global state changes much easier.
 ---
 
-	local numGlobalBuiltInBlocks = #p.api.scope.global.blocks
+	local startupGlobalBlockCount = #p.api.scope.global.blocks
 
-	p.override(p.api, "reset", function(base)
+	p.override(p.api, 'reset', function(base)
 		base()
-		dataBlocks = nil
 
-		numGlobalBlocks = #p.api.scope.global.blocks
+		flattenedDataBlocks = nil
 
-		for i = numGlobalBlocks, numGlobalBuiltInBlocks, -1 do
+		local currentGlobalBlockCount = #p.api.scope.global.blocks
+		for i = currentGlobalBlockCount, startupGlobalBlockCount + 1, -1 do
 			table.remove(p.api.scope.global.blocks, i)
 		end
 	end)
 
 
 
-	function m:flattenedBlockList()
-		if dataBlocks == nil then
-			dataBlocks = m:buildMasterBlockList()
+---
+-- Retrieve the flattened version of the global configuration data, building
+-- it if needed.
+---
+
+	function m.globalDataBlocks()
+		if not flattenedDataBlocks then
+			flattenedDataBlocks = m.buildGlobalBlockList()
 		end
+		return flattenedDataBlocks
+	end
+
+
+
+	function m.buildGlobalBlockList()
+		local dataBlocks = {}
+		local scopeTerms = {}
+
+		m.addBlocksFromContainer(dataBlocks, p.api.scope.global, scopeTerms)
 
 		return dataBlocks
 	end
 
 
 
-
-	function m.buildMasterBlockList()
-		local blockList = {}
-		local scopeTerms = {}
-
-		m.addBlocksFromContainer(blockList, p.api.scope.global, scopeTerms)
-
-		return blockList
-	end
-
-
-	function m.addBlocksFromContainer(blockList, container, scopeTerms)
+	function m.addBlocksFromContainer(dataBlocks, container, scopeTerms)
 		local blocks = container.blocks
 		local n = #blocks
 
@@ -100,14 +105,14 @@
 			local criteria = block._criteria
 			criteria.terms = table.join(criteria.terms, scopeTerms)
 
-			table.insert(blockList, block)
+			table.insert(dataBlocks, block)
 		end
 
 		for class in p.container.eachChildClass(container.class) do
 			for child in p.container.eachChild(container, class) do
 				local localScopeTerms = table.arraycopy(scopeTerms)
 				table.insert(localScopeTerms, class.pluralName .. ':' .. child.name)
-				m.addBlocksFromContainer(blockList, child, localScopeTerms)
+				m.addBlocksFromContainer(dataBlocks, child, localScopeTerms)
 			end
 		end
 	end

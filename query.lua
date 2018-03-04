@@ -28,12 +28,11 @@
 
 	local p = premake
 
-	local Query = {}
+	local field = require(path.join(_SCRIPT_DIR, 'field'))
+
 	local m = {}
 
-	local Condition = dofile('./condition.lua')
-	local Field = dofile('./field.lua')
-	local Oven = dofile('./oven.lua')
+	local compiler = dofile('./compiler.lua')
 
 
 
@@ -55,6 +54,62 @@
 
 
 
+---
+-- Construct a new Query object.
+--
+-- Queries are evaluated lazily. They are cheap to create and extend.
+--
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance.
+---
+
+	function m.new(open, closed)
+		local self = {}
+
+		self = {
+			_open = open or {},
+			_closed = closed or {},
+			_values = nil
+		}
+
+		return self
+	end
+
+
+
+---
+-- Fetch a value from the query's filtered result set.
+--
+-- *Values returned from this function should be considered immutable!*
+-- don't have a way to enforce that (yet), so you'll just have to be on
+-- your best behavior. If you change a value returned from this method,
+-- you may be changing it for all future calls as well. Make copies before
+-- making changes!
+---
+
+	function m.fetch(self, key)
+		if not self._values then
+			self._values = compiler.evaluate(self._open, self._closed)
+		end
+
+		local value = self._values[key]
+
+		if not value then
+			local fld = field.get(key)
+			value = field.emptyValue(fld)
+		end
+
+		return value
+	end
+
+
+
+
+
 
 ---
 -- Fetch a value, applying the previously specified filtering criteria.
@@ -66,39 +121,39 @@
 -- making changes!
 ---
 
-	function m:fetch(key)
-		local private = self[m]
+	-- function m:fetch(key)
+	-- 	local private = self[m]
 
-		-- The first fetch will cause query results to be compiled
-		if private.result == nil then
-			private.result = m.compile(self)
-		end
+	-- 	-- The first fetch will cause query results to be compiled
+	-- 	if private.result == nil then
+	-- 		private.result = m.compile(self)
+	-- 	end
 
 
-		local value = nil
+	-- 	local value = nil
 
-		-- -- -- Treat requests for containers as a list of container names
-		-- -- if containerKeys[key] ~= nil then
-		-- -- 	local containers = self._source[key]
-		-- -- 	value = table.extract(containers or {}, "name")
-		-- -- 	return value
-		-- -- end
+	-- 	-- -- -- Treat requests for containers as a list of container names
+	-- 	-- -- if containerKeys[key] ~= nil then
+	-- 	-- -- 	local containers = self._source[key]
+	-- 	-- -- 	value = table.extract(containers or {}, "name")
+	-- 	-- -- 	return value
+	-- 	-- -- end
 
-		-- -- First fetch will cause query results to be compiled
-		-- if self._result == nil then
-		-- 	self._result = self:_compile()
-		-- end
+	-- 	-- -- First fetch will cause query results to be compiled
+	-- 	-- if self._result == nil then
+	-- 	-- 	self._result = self:_compile()
+	-- 	-- end
 
-		-- value = self._result[key]
+	-- 	-- value = self._result[key]
 
-		-- If no value present, return an appropriate empty value
-		if not value then
-			local field = Field:get(key)
-			value = field:emptyValue()
-		end
+	-- 	-- If no value present, return an appropriate empty value
+	-- 	if not value then
+	-- 		local field = Field:get(key)
+	-- 		value = field:emptyValue()
+	-- 	end
 
-		return value
-	end
+	-- 	return value
+	-- end
 
 
 
@@ -107,132 +162,132 @@
 -- called the first time a value is fetched from this instance.
 ---
 
-	function m:compile()
-		local result = {}
+-- 	function m:compile()
+-- 		local result = {}
 
-		local dataBlocks = Oven:flattenedBlockList()
-
-
--- Let's assume that I'm given an un-baked data source, since I've turned off
--- baking above. So I will always get a container of some kind.
-
-		-- result = self:_mergeContainer(result, self._dataSource)
+-- 		local dataBlocks = Oven:flattenedBlockList()
 
 
+-- -- Let's assume that I'm given an un-baked data source, since I've turned off
+-- -- baking above. So I will always get a container of some kind.
 
-		-- -- Use my insider knowledge to peek under the hood of the data source and
-		-- -- find the list of configuration data blocks. The way things are currently
-		-- -- set up, the data source will always be a container's configuration set,
-		-- -- or a context built from one.
-
-		-- local container = dataSource._cfgset or dataSource
-		-- local blocks = container.blocks or {}
-
-		-- -- Compare the terms on each block with my filters, and merge together all
-		-- -- of the blocks that pass the test. Again, using insider knowledge of the
-		-- -- block data structure for now.
-
-		-- local n = #blocks
-
-		-- for i = 1, n do
-		-- 	local block = blocks[i]
-
-		-- 	-- If this is the first time I've encountered this block, wrap its list
-		-- 	-- of terms up in a Condition instance, which I'll then use to test.
-		-- 	block._condition = block._condition or Condition:new(block._criteria.terms)
-
-		-- 	if block._condition:appliesTo(result, open, closed) then
-		-- 		m._merge(result, block)
-		-- 	end
-		-- end
-
-		return result
-	end
-
-
-	function m:_mergeContainer(result, container)
-		result = self:_mergeBlocks(result, container.blocks)
-		result = m:_mergeChildContainers(result, container)
-		return result
-	end
+-- 		-- result = self:_mergeContainer(result, self._dataSource)
 
 
 
-	function m:_mergeChildContainers(result, parentContainer)
-		for childClass in container.eachChildClass(parentContainer.class) do
-			for child in container.eachChild(parentContainer, childClass) do
+-- 		-- -- Use my insider knowledge to peek under the hood of the data source and
+-- 		-- -- find the list of configuration data blocks. The way things are currently
+-- 		-- -- set up, the data source will always be a container's configuration set,
+-- 		-- -- or a context built from one.
 
-				-- I have `clildClass`, which has `name` and `pluralName`
-				-- I have `child`, which has `name`
+-- 		-- local container = dataSource._cfgset or dataSource
+-- 		-- local blocks = container.blocks or {}
 
-				-- The condition is "workspaces" and name
+-- 		-- -- Compare the terms on each block with my filters, and merge together all
+-- 		-- -- of the blocks that pass the test. Again, using insider knowledge of the
+-- 		-- -- block data structure for now.
 
-				local key = childClass.pluralName  -- e.g. "projects"
-				local value = child.name  -- e.g. "MyProject"
+-- 		-- local n = #blocks
 
-				-- closed: (self._closed[key] == value)
-				-- open: (self._open[key] == value)
+-- 		-- for i = 1, n do
+-- 		-- 	local block = blocks[i]
 
+-- 		-- 	-- If this is the first time I've encountered this block, wrap its list
+-- 		-- 	-- of terms up in a Condition instance, which I'll then use to test.
+-- 		-- 	block._condition = block._condition or Condition:new(block._criteria.terms)
 
+-- 		-- 	if block._condition:appliesTo(result, open, closed) then
+-- 		-- 		m._merge(result, block)
+-- 		-- 	end
+-- 		-- end
 
-
-			end
-		end
-	end
-
-
-	function m:_mergeBlocks(result, blocks)
-		local n = #blocks
-
-		for i = 1, n do
-			local block = blocks[i]
-
-			-- If this is the first time I've encountered this block, wrap its list
-			-- of terms up in a Condition instance, which I'll then use to test.
-			block._condition = block._condition or Condition:new(block._criteria.terms)
-
-			if block._condition:appliesTo(result, self._open, self._closed) then
-				self:_mergeBlock(result, block)
-			end
-		end
-
-		return result
-	end
+-- 		return result
+-- 	end
 
 
-	function m:_mergeBlock(result, block)
-		for key, value in pairs(block) do
-			local field = Field.get(key)
-			result[key] = p.field.merge(field, result[key] or {}, value)
-		end
-	end
+-- 	function m:_mergeContainer(result, container)
+-- 		result = self:_mergeBlocks(result, container.blocks)
+-- 		result = m:_mergeChildContainers(result, container)
+-- 		return result
+-- 	end
 
 
 
----
--- Narrow an existing query with additional filtering.
---
--- @param open
---    A key-value collection of "open" filtering terms.
--- @param closed
---    A key-value collection of "closed" filtering terms.
--- @return
---    A new Query instance with the additional filtering applied.
----
+-- 	function m:_mergeChildContainers(result, parentContainer)
+-- 		for childClass in container.eachChildClass(parentContainer.class) do
+-- 			for child in container.eachChild(parentContainer, childClass) do
 
-	function m:filter(open, closed)
-		return self
-		-- open = table.merge(self._open, open)
-		-- closed = table.merge(self._closed, closed)
+-- 				-- I have `clildClass`, which has `name` and `pluralName`
+-- 				-- I have `child`, which has `name`
 
-		-- -- If a term has moved from open to closed, remove it from open
-		-- for key, _ in pairs(closed) do
-		-- 	open[key] = nil
-		-- end
+-- 				-- The condition is "workspaces" and name
 
-		-- local qry = m:new(self._dataSource, open, closed)
-		-- return qry
-	end
+-- 				local key = childClass.pluralName  -- e.g. "projects"
+-- 				local value = child.name  -- e.g. "MyProject"
+
+-- 				-- closed: (self._closed[key] == value)
+-- 				-- open: (self._open[key] == value)
+
+
+
+
+-- 			end
+-- 		end
+-- 	end
+
+
+-- 	function m:_mergeBlocks(result, blocks)
+-- 		local n = #blocks
+
+-- 		for i = 1, n do
+-- 			local block = blocks[i]
+
+-- 			-- If this is the first time I've encountered this block, wrap its list
+-- 			-- of terms up in a Condition instance, which I'll then use to test.
+-- 			block._condition = block._condition or Condition:new(block._criteria.terms)
+
+-- 			if block._condition:appliesTo(result, self._open, self._closed) then
+-- 				self:_mergeBlock(result, block)
+-- 			end
+-- 		end
+
+-- 		return result
+-- 	end
+
+
+-- 	function m:_mergeBlock(result, block)
+-- 		for key, value in pairs(block) do
+-- 			local field = Field.get(key)
+-- 			result[key] = p.field.merge(field, result[key] or {}, value)
+-- 		end
+-- 	end
+
+
+
+-- ---
+-- -- Narrow an existing query with additional filtering.
+-- --
+-- -- @param open
+-- --    A key-value collection of "open" filtering terms.
+-- -- @param closed
+-- --    A key-value collection of "closed" filtering terms.
+-- -- @return
+-- --    A new Query instance with the additional filtering applied.
+-- ---
+
+-- 	function m:filter(open, closed)
+-- 		return self
+-- 		-- open = table.merge(self._open, open)
+-- 		-- closed = table.merge(self._closed, closed)
+
+-- 		-- -- If a term has moved from open to closed, remove it from open
+-- 		-- for key, _ in pairs(closed) do
+-- 		-- 	open[key] = nil
+-- 		-- end
+
+-- 		-- local qry = m:new(self._dataSource, open, closed)
+-- 		-- return qry
+-- 	end
 
 
 
@@ -404,13 +459,13 @@
 -- Export public methods.
 ---
 
-	local metatable =
-	{
-		__index = {
-			fetch = m.fetch,
-			filter = m.filter
-		}
-	}
+	-- local metatable =
+	-- {
+	-- 	__index = {
+	-- 		fetch = m.fetch,
+	-- 		filter = m.filter
+	-- 	}
+	-- }
 
 
 
@@ -430,23 +485,23 @@
 --    A new Query instance.
 ---
 
-	function Query:new(open, closed)
-		local newInstance = {}
+	-- function Query:new(open, closed)
+	-- 	local newInstance = {}
 
-		newInstance[m] = {
-			-- open = open or {},
-			-- closed = closed or {},
-			result = nil
-		}
+	-- 	newInstance[m] = {
+	-- 		-- open = open or {},
+	-- 		-- closed = closed or {},
+	-- 		result = nil
+	-- 	}
 
-		setmetatable(newInstance, metatable)
-		return newInstance
-	end
+	-- 	setmetatable(newInstance, metatable)
+	-- 	return newInstance
+	-- end
 
 
 
 ---
--- Write the full list of blocks out to the console for debugging.
+-- Write the full list of global configuration blocks out to the console for debugging.
 --
 -- TODO: Move this into the API module.
 --
@@ -454,10 +509,10 @@
 --    Optional; if set, will only show values for this specific field.
 ---
 
-	function Query:visualizeSourceData(targetFieldName)
+	function m.visualizeSourceData(targetFieldName)
 		local eol = '\r\n'
 
-		local dataBlocks = Oven:flattenedBlockList()
+		local dataBlocks = compiler.globalDataBlocks()
 
 		for i = 1, #dataBlocks do
 			local block = dataBlocks[i]
@@ -469,8 +524,8 @@
 
 			for key, value in pairs(block) do
 				if targetFieldName == nil or targetFieldName == key then
-					local field = Field:get(key)
-					text = string.format('  %s: %s%s', field.name, field:toString(value), eol)
+					local fld = field.get(key)
+					text = string.format('  %s: %s%s', fld.name, field.toString(fld, value), eol)
 					io.stdout:write(text)
 				end
 			end
@@ -485,4 +540,4 @@
 -- End of module
 ---
 
-	return Query
+	return m

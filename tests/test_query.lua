@@ -7,7 +7,7 @@
 
 	local suite = test.declare('query')
 
-	local Query = require('query')
+	local query = require('query')
 
 
 
@@ -20,7 +20,7 @@
 
 
 	function suite.setup()
-		qry = Query:new()
+		qry = query.new()
 	end
 
 
@@ -41,7 +41,7 @@
 ---
 
 	function suite.fetch_returnsNil_onUnsetPrimitiveType()
-		local result = qry:fetch('prebuildmessage')
+		local result = query.fetch(qry, 'prebuildmessage')
 		test.isnil(result)
 	end
 
@@ -53,7 +53,7 @@
 ---
 
 	function suite.fetch_returnsEmptyList_onUnsetListType()
-		local result = qry:fetch('libdirs')
+		local result = query.fetch(qry, 'libdirs')
 		test.isequal({}, result)
 	end
 
@@ -65,28 +65,28 @@
 
 	function suite.fetch_returnsPrimitive_fromGlobalScopeWithNoFilters()
 		rtti('On')
-		local result = qry:fetch('rtti')
+		local result = query.fetch(qry, 'rtti')
 		test.isequal('On', result)
 	end
 
 
 
----
--- Should be able to fetch values set in a workspace scope.
----
+-- ---
+-- -- Should be able to fetch values set in a workspace scope.
+-- ---
 
-	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
-		workspace('MyWorkspace')
-		rtti('On')
-		project('MyProject')
-		rtti('Off')
+-- 	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
+-- 		workspace('MyWorkspace')
+-- 		rtti('On')
+-- 		project('MyProject')
+-- 		rtti('Off')
 
-		local result = qry
-			:filter({ workspace='MyWorkspace' })
-			:fetch('rtti')
+-- 		local result = qry
+-- 			:filter({ workspace='MyWorkspace' })
+-- 			:fetch('rtti')
 
-		test.isequal('On', result)
-	end
+-- 		test.isequal('On', result)
+-- 	end
 
 
 
