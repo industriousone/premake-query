@@ -42,6 +42,8 @@
 
 	local p = premake
 
+	local condition = require(path.join(_SCRIPT_DIR, 'condition'))
+
 	local m = {}
 
 	local flattenedDataBlocks = nil
@@ -103,7 +105,8 @@
 			local block = blocks[i]
 
 			local criteria = block._criteria
-			criteria.terms = table.join(criteria.terms, scopeTerms)
+			local terms = table.join(criteria.terms, scopeTerms)
+			block._condition = condition.new(terms)
 
 			table.insert(dataBlocks, block)
 		end

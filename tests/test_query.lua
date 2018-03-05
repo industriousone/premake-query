@@ -71,22 +71,21 @@
 
 
 
--- ---
--- -- Should be able to fetch values set in a workspace scope.
--- ---
+---
+-- Should be able to fetch values set in a workspace scope.
+---
 
--- 	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
--- 		workspace('MyWorkspace')
--- 		rtti('On')
--- 		project('MyProject')
--- 		rtti('Off')
+	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
+		workspace('MyWorkspace')
+		rtti('On')
+		project('MyProject')
+		rtti('Off')
 
--- 		local result = qry
--- 			:filter({ workspace='MyWorkspace' })
--- 			:fetch('rtti')
+		qry = query.filter(qry, { workspace='MyWorkspace' })
 
--- 		test.isequal('On', result)
--- 	end
+		local result = query.fetch(qry, 'rtti')
+		test.isequal('On', result)
+	end
 
 
 

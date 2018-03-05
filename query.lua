@@ -108,6 +108,31 @@
 
 
 
+---
+-- Narrow an existing query with additional filtering.
+--
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance with the additional filtering applied.
+---
+
+	function m.filter(self, open, closed)
+		local open = table.merge(self._open, open)
+		local closed = table.merge(self._closed, closed)
+
+		-- If a term has moved from open to closed, remove it from open
+		for key, _ in pairs(closed) do
+			open[key] = nil
+		end
+
+		local qry = m.new(open, closed)
+		return qry
+	end
+
+
 
 
 
@@ -456,20 +481,6 @@
 
 
 ---
--- Export public methods.
----
-
-	-- local metatable =
-	-- {
-	-- 	__index = {
-	-- 		fetch = m.fetch,
-	-- 		filter = m.filter
-	-- 	}
-	-- }
-
-
-
----
 -- Construct a new Query object.
 --
 -- Queries are evaluated lazily. They are cheap to create and extend.
@@ -516,9 +527,9 @@
 
 		for i = 1, #dataBlocks do
 			local block = dataBlocks[i]
-			local criteria = block._criteria
+			local condition = block._condition
 
-			local terms = table.concat(criteria.terms, ', ')
+			local terms = table.concat(condition.terms, ', ')
 			local text = string.format('BLOCK %d: { %s }%s', i, terms, eol)
 			io.stdout:write(text)
 

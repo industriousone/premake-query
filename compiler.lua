@@ -7,13 +7,12 @@
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
+	local condition = require(path.join(_SCRIPT_DIR, 'condition'))
 	local field = require(path.join(_SCRIPT_DIR, 'field'))
 
 	local m = {}
 
-	local condition = dofile('./condition.lua')
 	local oven = dofile('./oven.lua')
-
 
 
 ---
@@ -29,9 +28,9 @@
 
 		for i = 1, n do
 			local block = dataBlocks[i]
-			-- if condition.passes(block._condition, open, closed) then
+			if condition.appliesTo(block._condition, result, open, closed) then
 				m.merge(result, block)
-			-- end
+			end
 		end
 
 		return result
