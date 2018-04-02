@@ -2,7 +2,7 @@
 -- query/tests/test_query.lua
 --
 -- Author Jason Perkins
--- Copyright (c) 2016 Jason Perkins and the Premake project
+-- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
 	local suite = test.declare('query')
@@ -59,9 +59,9 @@
 
 
 
--- ---
--- -- A query with no filters should fetch values from the global scope.
--- ---
+---
+-- A query with no filters should fetch values from the global scope.
+---
 
 	function suite.fetch_returnsPrimitive_fromGlobalScopeWithNoFilters()
 		rtti('On')
@@ -81,7 +81,7 @@
 		project('MyProject')
 		rtti('Off')
 
-		qry = query.filter(qry, { workspace='MyWorkspace' })
+		qry = query.filter(qry, { workspaces='MyWorkspace' })
 
 		local result = query.fetch(qry, 'rtti')
 		test.isequal('On', result)
@@ -89,35 +89,33 @@
 
 
 
--- ---
--- -- When the workspace scope is specified as as open filter, values from the
--- -- global scope should be inherited.
--- ---
+---
+-- When the workspace scope is specified as as open filter, values from the
+-- global scope should be inherited.
+---
 
--- 	function suite.fetch_inheritsGlobalInWorkspace_onOpenFilter()
--- 		workspace('MyWorkspace')
+	function suite.fetch_inheritsGlobalInWorkspace_onOpenFilter()
+		workspace('MyWorkspace')
 
--- 		local result = qry
--- 			:filter({ workspace='MyWorkspace' }, {})
--- 			:fetch('rtti')
+		qry = query.filter(qry, { workspaces='MyWorkspace' })
 
--- 		test.isequal('Default', result)
--- 	end
-
+		local result = query.fetch(qry, 'rtti')
+		test.isequal('Default', result)
+	end
 
 
--- ---
--- -- When the workspace scope if specified as as closed filter, values from the
--- -- global scope should not be inherited.
--- ---
 
--- 	function suite.fetch_doesNotInheritGlobalInWorkspace_onClosedFilter()
--- 		workspace('MyWorkspace')
+---
+-- When the workspace scope if specified as as closed filter, values from the
+-- global scope should not be inherited.
+---
 
--- 		local result = qry
--- 			:filter({}, { workspace='MyWorkspace' })
--- 			:fetch('rtti')
+	-- function suite.fetch_doesNotInheritGlobalInWorkspace_onClosedFilter()
+	-- 	workspace('MyWorkspace')
 
--- 		test.isnil(result)
--- 	end
+	-- 	qry = query.filter(qry, {}, { workspaces='MyWorkspace' })
+
+	-- 	local result = query.fetch(qry, 'rtti')
+	-- 	test.isnil(result)
+	-- end
 

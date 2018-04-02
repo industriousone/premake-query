@@ -11,6 +11,7 @@
 
 	local m = {}
 
+	local clause = dofile('./clause.lua')
 
 
 ---
@@ -22,9 +23,17 @@
 ---
 
 	function m.new(terms)
+		terms = terms or {}
+
+		local clauses = {}
+
+		for i, term in ipairs(terms) do
+			clauses[i] = clause.new(term)
+		end
+
 		local self = {
-			terms = terms
-			-- _clauses = m._compileTermsToClauses(terms or {})
+			terms = terms,
+			_clauses = clauses,
 		}
 
 		return self
@@ -32,106 +41,27 @@
 
 
 
-
-
--- 	m._clauseCache = {}
-
-
-
-
--- 	function m._compileTermsToClauses(terms)
--- 		local clauses = {}
-
--- 		local n = #terms
--- 		for i = 1, n do
--- 			local term = terms[i]
-
--- 			local clause = m._clauseCache[term]
-
--- 			if not clause then
--- 				clause = m._compileTermToClause(term)
--- 				m._clauseCache[term] = clause
--- 			end
-
--- 			clauses[clause.key] = clause
--- 		end
-
--- 		return clauses
--- 	end
-
-
-
--- 	function m._compileTermToClause(term)
--- 		local parts = term:explode(":", true, 1)
--- 		local key = parts[1]
--- 		local values = parts[2]
-
--- 		local clause = { values }
--- 		clause.key = key
--- 		clause.negated = false
-
--- 		return clause
--- 	end
-
-
-
 ---
--- Test this condition against a set of data.
+-- Does this condition apply to the provided criteria?
 --
 -- @param data
---    A set of key-value pairs, representing the state to be tested against.
---    These will be considered in the case that the target value is not specified
---    by the filter.
+--    The currently assembled data set. Values that have been previously
+--    set can match clauses in the condition.
 -- @param open
---    A key-value collection of "open" filtering terms.
--- @param closed
---    A key-value collection of "closed" filtering terms.
----
-
+--
+--
 	function m.appliesTo(self, data, open, closed)
--- 		for key, clause in pairs(self._clauses) do
--- 			local closedValue = closed[key]
--- 			local openValue = open[key]
+		local clauses = self._clauses
+		local n = #clauses
 
--- 			-- TODO: I need to reverse closedValue checks...
-
--- 			local n = #clause
-
--- 			-- Closed filter values must be matched by the block
--- 			if closedValue then
--- 				if n == 0 then
--- 					return false
--- 				end
-
--- 				for i = 1, n do
--- 					local blockFilterPattern = clause[i]
--- 					if not closedValue:match(blockFilterPattern) then
--- 						return false
--- 					end
--- 				end
--- 			end
-
--- 			-- Terms listed on the block must match something in the filters to pass
--- 			for i = 1, n do
--- 				local blockFilterPattern = clause[i]
-
--- 				local matched = false
-
--- 				if openValue ~= nil and openValue:match(blockFilterPattern) then
--- 					matched = true
--- 				elseif closedValue ~= nil and closedValue:match(blockFilterPattern) then
--- 					matched = true
--- 				end
-
--- 				if not matched then
--- 					return false
--- 				end
--- 			end
--- 		end
+		for i = 1, n do
+			if not clause.appliesTo(clauses[i], data, open, closed) then
+				return false
+			end
+		end
 
 		return true
 	end
-
 
 
 ---

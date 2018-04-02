@@ -52,22 +52,12 @@
 
 ---
 -- Override `api.reset()`, which is called between each unit test run, use it to
--- blow away our cached flattened configuration list. For bonus points, I also
--- trim off any blocks that were added to the global scope by the tests, which
--- makes testing global state changes much easier.
+-- blow away the cached flattened configuration list.
 ---
-
-	local startupGlobalBlockCount = #p.api.scope.global.blocks
 
 	p.override(p.api, 'reset', function(base)
 		base()
-
 		flattenedDataBlocks = nil
-
-		local currentGlobalBlockCount = #p.api.scope.global.blocks
-		for i = currentGlobalBlockCount, startupGlobalBlockCount + 1, -1 do
-			table.remove(p.api.scope.global.blocks, i)
-		end
 	end)
 
 
