@@ -15,6 +15,22 @@
 	local oven = dofile('./oven.lua')
 
 
+
+	local function shouldMergeBlock(block, data, open, closed)
+		local cond = block._condition
+
+		for key, value in pairs(closed) do
+			if not condition.canMatchTerm(cond, key, value) then
+				return false
+			end
+		end
+
+		local isMatched = condition.isMatchedBy(cond, data, open, closed)
+		return isMatched
+	end
+
+
+
 ---
 -- Evaluates a query's filters against the global configuration set and
 -- returns the result.
@@ -24,11 +40,9 @@
 		local result = {}
 
 		local dataBlocks = oven.globalDataBlocks()
-		local n = #dataBlocks
 
-		for i = 1, n do
-			local block = dataBlocks[i]
-			if condition.appliesTo(block._condition, result, open, closed) then
+		for i, block in ipairs(dataBlocks) do
+			if shouldMergeBlock(block, result, open, closed) then
 				m.merge(result, block)
 			end
 		end

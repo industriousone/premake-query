@@ -17,83 +17,66 @@
 -- Creates a clause instance from a block scoping term.
 ---
 
-	function m.new(term)
-		local clause = cache[term]
-		if clause then
-			return clause
+	function m.new(key, patterns)
+		-- convert from old `{'system:windows'}` style to `{system='windows'}`
+		if type(key) == 'number' then
+			local parts = patterns:explode(':', true, 1)
+			key = parts[1]
+			patterns = parts[2]
 		end
 
-		local parts = term:explode(":", true, 1)
+		local rule = cache[patterns]
 
-		local key = parts[1]
-		local values = { parts[2] }  -- TODO: support multiple values
+		if not rule then
+			rule = {}
+			rule.patterns = { patterns }
+			rule.negated = false
+			cache[patterns] = rule
+		end
 
 		local clause = {}
-
 		clause.key = key
-		clause.values = values
-		clause.negated = false
+		clause.rule = rule
 
-		cache[term] = clause
 		return clause
 	end
 
 
 
----
--- Test this condition against a set of data.
---
--- @param data
---    A set of key-value pairs, representing the state to be tested against.
---    These will be considered in the case that the target value is not specified
---    by the filter.
--- @param open
---    A key-value collection of "open" filtering terms.
--- @param closed
---    A key-value collection of "closed" filtering terms.
----
+	function m.isMatchedBy(self, data, open, closed)
+		local key = self.key
+		local rule = self.rule
 
-	-- TODO: should compiler.lua -> clause.lua?
-	function m.appliesTo(clause, data, openFilters, closedFilters)
-		local key = clause.key
-		local blockPatterns = clause.values
-		local n = #blockPatterns
+		for i, pattern in ipairs(rule.patterns) do
+			local value
 
-		local open = openFilters[key]
-		local closed = closedFilters[key]
-
-		-- Closed filter values *must* be matched by the block
-		if closed ~= nil then
-			if n == 0 then
-				return false  -- block has no terms to match the closed list
+			value = open[key] or closed[key] or data[key]
+			if value ~= nil and value:match(pattern) then
+				return true
 			end
+		end
 
-			for i = 1, n do
-				local pattern = blockPatterns[i]
-				if not closed:match(pattern) then
-					return false
+		return false
+	end
+
+
+
+---
+-- Determines if this clause can match the provided query filtering key and value.
+---
+
+	function m.matchesTerm(self, key, value)
+		if self.key == key then
+			local rule = self.rule
+
+			for _, pattern in ipairs(rule.patterns) do
+				if value:match(pattern) then
+					return true
 				end
 			end
 		end
 
-		-- Patterns listed on the block must match something in the filters to pass
-		for i = 1, n do
-			local pattern = blockPatterns[i]
-
-			local matched = false
-
-			if open ~= nil and open:match(pattern) then
-				matched = true
-			elseif closed ~= nil and closed:match(pattern) then
-				matched = true
-			end
-
-			if not matched then
-				return false
-			end
-		end
-
-		return true
+		return false
 	end
 
 

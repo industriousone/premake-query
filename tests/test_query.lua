@@ -26,16 +26,6 @@
 
 
 ---
--- Make sure we can create a Query instance without issues.
----
-
-	function suite.canConstructNewInstance()
-		test.isnotnil(qry)
-	end
-
-
-
----
 -- Primitive value fields which have not been set should return nil. I'm using
 -- knowledge of Premake internals to query a field that I believe has not been set.
 ---
@@ -110,12 +100,12 @@
 -- global scope should not be inherited.
 ---
 
-	-- function suite.fetch_doesNotInheritGlobalInWorkspace_onClosedFilter()
-	-- 	workspace('MyWorkspace')
+	function suite.fetch_doesNotInheritGlobalInWorkspace_onClosedFilter()
+		workspace('MyWorkspace')
 
-	-- 	qry = query.filter(qry, {}, { workspaces='MyWorkspace' })
+		qry = query.filter(qry, {}, { workspaces='MyWorkspace' })
 
-	-- 	local result = query.fetch(qry, 'rtti')
-	-- 	test.isnil(result)
-	-- end
+		local result = query.fetch(qry, 'rtti')
+		test.isnil(result)
+	end
 
