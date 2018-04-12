@@ -1,23 +1,45 @@
 ---
 -- query/query.lua
 --
+-- Queries process a list of configuration blocks, return values from those blocks
+-- which meet certain criteria, or "filters". A filter is a key-value collection
+-- of values that need to be matched by the filtering terms associated with each
+-- configuration block.
+--
+--     -- Include only blocks from the 'Debug' configuration of 'Workspace1'
+--     { workspaces='Workspace1', configurations='Debug' }
+--
+-- Queries use two different kinds of filters: "open" and "closed". An open filter
+-- will pass if it matches the corresponding term on a configuration block, or if
+-- there is no corresponding term on the configuration block (i.e. nil). It  will
+-- fail if there is a conflicting value on a configuration block. If the above
+-- query is treated as "open", it will match blocks with no workspace or
+-- configuration (i.e. global scope), blocks with a matching workspace but no
+-- configuration (i.e. workspace scope), blocks with a matching configuration but
+-- no workspace, and blocks which match both workspace and configuration.
+--
+-- A closed term will pass only if the configuration block contains a match for
+-- the term. If the above filter is treated as closed, it will only match blocks
+-- which match both the workspace and the configuration.
+--
 -- Author Jason Perkins
 -- Copyright (c) 2017 Jason Perkins and the Premake project
 ---
 
+	local p = premake
+
+	local field = require(path.join(_SCRIPT_DIR, 'field'))
+
 	local m = {}
 
-	local Condition = dofile('condition.lua')
-	local Field = dofile('field.lua')
-
-	local p = premake
+	local compiler = dofile('./compiler.lua')
 
 
 
 ---
--- With this approach, the baking step goes away. We should no longer be pre-processing
--- things, since that limits the ways we can pull the data later. And file configuration
--- objects are evil and need to die.
+-- With this approach, the original baking process goes away. We should no longer be
+-- pre-processing things, since that limits the ways we can pull and use the data later.
+-- And file configuration objects are evil and need to die.
 ---
 
 	p.override(p.main, "bake", function()
@@ -33,153 +55,119 @@
 
 
 ---
--- Identify which keys represent containers, e.g. "workspaces", "projects". I'll
--- use these to trigger container specific behavior, so that I can provide the
--- illusion that they are just normally configured lists like everything else.
----
-
-	local containerKeys = {}
-
-	for name, class in pairs(p.container.classes) do
-		local key = class.pluralName
-		containerKeys[key] = key
-	end
-
-
-
----
--- Set up ":" style calling for methods.
----
-
-	local metatable =
-	{
-		__index = m
-	}
-
-
-
----
 -- Construct a new Query object.
 --
 -- Queries are evaluated lazily. They are cheap to create and extend.
 --
--- @param filter
---    A list of key-value pairs representing the specifics of the condition,
---    e.g. `{ "configurations:Debug", "system:Windows" }`.
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance.
 ---
 
-	function m.new(source, filter)
-		local self = {
-			_source = source,
-			_filter = filter or {}
+	function m.new(open, closed)
+		local self = {}
+
+		self = {
+			_open = open or {},
+			_closed = closed or {},
+			_values = nil
 		}
 
-		setmetatable(self, metatable)
 		return self
 	end
 
 
 
 ---
--- Fetch a value, applying the previously specified filtering criteria.
+-- Fetch a value from the query's filtered result set.
 --
--- *Values returned from this function should be considered immutable!* I
+-- *Values returned from this function should be considered immutable!*
 -- don't have a way to enforce that (yet), so you'll just have to be on
 -- your best behavior. If you change a value returned from this method,
 -- you may be changing it for all future calls as well. Make copies before
 -- making changes!
 ---
 
-	function m:fetch(key)
-		-- Treat requests for containers as a list of container names
-		if containerKeys[key] ~= nil then
-			local containers = self._source[key]
-			value = table.extract(containers or {}, "name")
-			return value
+	function m.fetch(self, key)
+		if not self._values then
+			self._values = compiler.evaluate(self._open, self._closed)
 		end
 
-		-- First fetch will cause query results to be compiled
-		if not self._result then
-			self._result = self:_compile()
+		local value = self._values[key]
+
+		if not value then
+			local fld = field.get(key)
+			value = field.emptyValue(fld)
 		end
 
-		value = self._result[key]
 		return value
 	end
 
 
 
 ---
--- Run the query against the source data and compile the results. This gets
--- called the first time a value is fetched from this instance.
----
-
-	function m:_compile()
-		local source = self._source or {}
-		local filter = self._filter
-
-		-- Seed the results with the properties of the container (name, etc.)
-		local result = table.shallowcopy(source)
-
-		-- Peek under the hood of Context/ConfigSet to find the list of blocks
-		local cfgSet = source._cfgset or source
-		local blocks = cfgSet.blocks or {}
-
-		-- Merge together values from all blocks that pass the query's filter
-		local n = #blocks
-		for i = 1, n do
-			local block = blocks[i]
-
-			block._condition = block._condition or Condition.new(block._criteria.terms)
-
-			if block._condition:appliesTo(filter, result) then
-				m._merge(result, block)
-			end
-		end
-
-		return result
-	end
-
-
-
-	function m._merge(result, block)
-		for key, value in pairs(block) do
-			local field = Field.get(key)
-			result[key] = p.field.merge(field, result[key] or {}, value)
-		end
-	end
-
-
-
----
 -- Narrow an existing query with additional filtering.
+--
+-- @param open
+--    A key-value collection of "open" filtering terms.
+-- @param closed
+--    A key-value collection of "closed" filtering terms.
+-- @return
+--    A new Query instance with the additional filtering applied.
 ---
 
-	function m:filter(filter)
-		local source = self:_findSourceContainer(self._source, filter) or {}
-		local mergedFilter = table.merge(self._filter, filter)
+	function m.filter(self, open, closed)
+		local open = table.merge(self._open, open)
+		local closed = table.merge(self._closed, closed)
 
-		local q = m.new(source, mergedFilter)
-		return q
+		-- If a term has moved from open to closed, remove it from open
+		for key, _ in pairs(closed) do
+			open[key] = nil
+		end
+
+		local qry = m.new(open, closed)
+		return qry
 	end
 
 
-	function m:_findSourceContainer(source, filter)
-		if not source then
-			return nil
-		end
 
-		for containerType in pairs(containerKeys) do
-			local containersOfType = source[containerType]
-			local targetContainerName = filter[containerType]
-			if containersOfType and targetContainerName then
-				local container = containersOfType[targetContainerName]
-				return self:_findSourceContainer(container, filter)
+---
+-- Write the full list of global configuration blocks out to the console for debugging.
+--
+-- TODO: Move this into the API module.
+--
+-- @param targetFieldName
+--    Optional; if set, will only show values for this specific field.
+---
+
+	function m.visualizeSourceData(targetFieldName)
+		local eol = '\r\n'
+
+		local dataBlocks = compiler.globalDataBlocks()
+
+		for i = 1, #dataBlocks do
+			local block = dataBlocks[i]
+			local condition = block._condition
+
+			local terms = table.concat(condition.terms, ', ')
+			local text = string.format('BLOCK %d: { %s }%s', i, terms, eol)
+			io.stdout:write(text)
+
+			for key, value in pairs(block) do
+				if targetFieldName == nil or targetFieldName == key then
+					local fld = field.get(key)
+					text = string.format('  %s: %s%s', fld.name, field.toString(fld, value), eol)
+					io.stdout:write(text)
+				end
 			end
-		end
 
-		return source
+			io.stdout:write(eol)
+		end
 	end
+
 
 
 ---
