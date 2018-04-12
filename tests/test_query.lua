@@ -53,7 +53,7 @@
 -- A query with no filters should fetch values from the global scope.
 ---
 
-	function suite.fetch_returnsPrimitive_fromGlobalScopeWithNoFilters()
+	function suite.fetch_returnsPrimitive_fromGlobalScope()
 		rtti('On')
 		local result = query.fetch(qry, 'rtti')
 		test.isequal('On', result)
@@ -62,10 +62,10 @@
 
 
 ---
--- Should be able to fetch values set in a workspace scope.
+-- Should be able to fetch simple values set in a workspace scope.
 ---
 
-	function suite.fetch_returnsPrimitive_fromWorkspaceScopeWithNoFilters()
+	function suite.fetch_returnsPrimitive_fromWorkspaceScope()
 		workspace('MyWorkspace')
 		rtti('On')
 		project('MyProject')
@@ -75,6 +75,24 @@
 
 		local result = query.fetch(qry, 'rtti')
 		test.isequal('On', result)
+	end
+
+
+
+---
+-- Should be able to fetch simple values set in a project scope.
+---
+
+	function suite.fetch_returnsPrimitive_fromWorkspaceScope()
+		workspace('MyWorkspace')
+		rtti('On')
+		project('MyProject')
+		rtti('Off')
+
+		qry = query.filter(qry, { workspaces='MyWorkspace', projects='MyProject' })
+
+		local result = query.fetch(qry, 'rtti')
+		test.isequal('Off', result)
 	end
 
 
@@ -109,3 +127,42 @@
 		test.isnil(result)
 	end
 
+
+
+---
+-- Fetching a list value using an open filter should inherit values from the
+-- outer scope(s), while ignoring inner scopes.
+---
+
+	function suite.fetch_mergesLists_fromWorkspaceScope()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL', 'WORKSPACE' }, result)
+	end
+
+
+
+---
+-- Fetching a list value using a closed filter should only include values
+-- from that specific scope.
+---
+
+	function suite.fetch_mergesLists_fromWorkspaceScope()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+
+		qry = query.filter(qry, {}, { workspaces='MyWorkspace' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'WORKSPACE' }, result)
+	end

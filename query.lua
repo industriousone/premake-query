@@ -7,16 +7,16 @@
 -- configuration block.
 --
 --     -- Include only blocks from the 'Debug' configuration of 'Workspace1'
---     { workspace='Workspace1', configurations='Debug' }
+--     { workspaces='Workspace1', configurations='Debug' }
 --
--- Queries use two different kinds of filters: "open" and "closed". An open term
--- will pass if it matches the corresponding term on a configuration block, or
--- if there is no corresponding term on the configuration block (i.e. nil). It
--- will fail if there is a conflicting value on a configuration block. If the
--- the above query is treated as "open", it will match blocks with no workspace
--- or configuration (i.e. global scope), blocks with a matching workspace but
--- no configuration (i.e. workspace scope), blocks with a matching configuration
--- but no workspace, and blocks which match both workspace and configuration.
+-- Queries use two different kinds of filters: "open" and "closed". An open filter
+-- will pass if it matches the corresponding term on a configuration block, or if
+-- there is no corresponding term on the configuration block (i.e. nil). It  will
+-- fail if there is a conflicting value on a configuration block. If the above
+-- query is treated as "open", it will match blocks with no workspace or
+-- configuration (i.e. global scope), blocks with a matching workspace but no
+-- configuration (i.e. workspace scope), blocks with a matching configuration but
+-- no workspace, and blocks which match both workspace and configuration.
 --
 -- A closed term will pass only if the configuration block contains a match for
 -- the term. If the above filter is treated as closed, it will only match blocks

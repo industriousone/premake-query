@@ -19,13 +19,17 @@
 	local function shouldMergeBlock(block, data, open, closed)
 		local cond = block._condition
 
+		-- Closed filters must be matched by the block's condition
 		for key, value in pairs(closed) do
 			if not condition.canMatchTerm(cond, key, value) then
 				return false
 			end
 		end
 
+		-- All of the block's conditions must be matched by either the filtering
+		-- terms or the previously collected data
 		local isMatched = condition.isMatchedBy(cond, data, open, closed)
+
 		return isMatched
 	end
 
