@@ -1,4 +1,5 @@
 return {
-	'test_canMatchTerm.lua',
+	'test_hasClosedMatch.lua',
+	'test_hasOpenMatch.lua',
 	'test_isMatchedBy.lua'
 }

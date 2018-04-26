@@ -43,36 +43,16 @@
 
 
 
-	function m.isMatchedBy(self, data, open, closed)
-		local key = self.key
+---
+-- Determines if this clause can match the provided value.
+---
+
+	function m.test(self, value)
 		local rule = self.rule
 
-		for i, pattern in ipairs(rule.patterns) do
-			local value
-
-			value = open[key] or closed[key] or data[key]
-			if value ~= nil and value:match(pattern) then
+		for _, pattern in ipairs(rule.patterns) do
+			if value:match(pattern) then
 				return true
-			end
-		end
-
-		return false
-	end
-
-
-
----
--- Determines if this clause can match the provided query filtering key and value.
----
-
-	function m.matchesTerm(self, key, value)
-		if self.key == key then
-			local rule = self.rule
-
-			for _, pattern in ipairs(rule.patterns) do
-				if value:match(pattern) then
-					return true
-				end
 			end
 		end
 
