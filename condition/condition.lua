@@ -32,7 +32,8 @@
 		local clauses = {}
 
 		for key, patterns in pairs(filter or {}) do
-			table.insert(clauses, clause.new(key, patterns))
+			local cl = clause.new(key, patterns)
+			clauses[cl.key] = cl
 		end
 
 		local self = {
@@ -44,33 +45,36 @@
 
 
 
----
--- Determines if the provided term key and value can be matched by this condition.
----
+	function m.hasClosedMatch(self, key, value)
+		local cl = self._clauses[key]
 
-	function m.canMatchTerm(self, key, value)
-		local clauses = self._clauses
-
-		for i, cl in ipairs(clauses) do
-			if clause.matchesTerm(cl, key, value) then
-				return true
-			end
+		if not cl or not clause.test(cl, value) then
+			return false
 		end
 
-		return false
+		return true
 	end
 
 
 
----
--- Determines if a condition is satisfied by the supplied environment.
----
+	function m.hasOpenMatch(self, key, value)
+		local cl = self._clauses[key]
+
+		if cl ~= nil and not clause.test(cl, value) then
+			return false
+		end
+
+		return true
+	end
+
+
 
 	function m.isMatchedBy(self, data, open, closed)
 		local clauses = self._clauses
 
-		for i, cl in ipairs(clauses) do
-			if not clause.isMatchedBy(cl, data, open, closed) then
+		for key, cl in pairs(clauses) do
+			local value = closed[key] or open[key] or data[key]
+			if not value or not clause.test(cl, value) then
 				return false
 			end
 		end

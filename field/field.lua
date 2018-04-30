@@ -65,6 +65,36 @@
 
 
 ---
+-- Remove one or more values from a field's current values.
+--
+-- TODO: This should delegate out to a field type implementation. But
+-- for now, just assume a table with keys and/or indices.
+--
+-- @param currentValue
+--    The current value of the field.
+-- @param removePattern
+--    The value(s) to remove; can be a Lua pattern.
+---
+
+	function m.remove(self, currentValue, removePattern)
+		local pattern = path.wildcards(removePattern):lower()
+
+		local n = #currentValue
+		for i = n, 1, -1 do
+			local value = currentValue[i]
+			local loweredValue = value:lower()
+			if loweredValue:match(pattern) == loweredValue then
+				currentValue[value] = nil
+				table.remove(currentValue, i)
+			end
+		end
+
+		return currentValue
+	end
+
+
+
+---
 -- Turn a field value into a string for visualization during debugging.
 -- TODO: Needs some work, obviously. Should delegate to the field type chain.
 ---

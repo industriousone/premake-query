@@ -10,7 +10,6 @@
 	local query = require('query')
 
 
-
 ---
 -- Setup and teardown.
 ---
@@ -24,7 +23,6 @@
 	end
 
 
-
 ---
 -- Primitive value fields which have not been set should return nil. I'm using
 -- knowledge of Premake internals to query a field that I believe has not been set.
@@ -34,7 +32,6 @@
 		local result = query.fetch(qry, 'prebuildmessage')
 		test.isnil(result)
 	end
-
 
 
 ---
@@ -48,7 +45,6 @@
 	end
 
 
-
 ---
 -- A query with no filters should fetch values from the global scope.
 ---
@@ -58,7 +54,6 @@
 		local result = query.fetch(qry, 'rtti')
 		test.isequal('On', result)
 	end
-
 
 
 ---
@@ -78,12 +73,11 @@
 	end
 
 
-
 ---
 -- Should be able to fetch simple values set in a project scope.
 ---
 
-	function suite.fetch_returnsPrimitive_fromWorkspaceScope()
+	function suite.fetch_returnsPrimitive_fromProjectScope()
 		workspace('MyWorkspace')
 		rtti('On')
 		project('MyProject')
@@ -94,7 +88,6 @@
 		local result = query.fetch(qry, 'rtti')
 		test.isequal('Off', result)
 	end
-
 
 
 ---
@@ -112,7 +105,6 @@
 	end
 
 
-
 ---
 -- When the workspace scope if specified as as closed filter, values from the
 -- global scope should not be inherited.
@@ -128,13 +120,92 @@
 	end
 
 
+---
+-- Should be able to fetch values from a project scope, inheriting values
+-- from the workspace.
+---
+
+	function suite.fetch_projectScope_withInheritance()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace', projects='MyProject' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL', 'WORKSPACE', 'PROJECT' }, result)
+	end
+
+
+---
+-- Should be able to fetch values from a project scope, with no inheritance
+-- from the workspace.
+---
+
+	function suite.fetch_projectScope_withoutInheritance()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace' }, { projects='MyProject' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'PROJECT' }, result)
+	end
+
+
+---
+-- Should be able to fetch values from a file scope, inheriting values
+-- from the project.
+---
+
+	function suite.fetch_fileScope_withInheritance()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+		filter { 'files:**.c' }
+		defines { 'FILE' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace', projects='MyProject', files='hello.c' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL', 'WORKSPACE', 'PROJECT', 'FILE' }, result)
+	end
+
+
+---
+-- Should be able to fetch values from a project scope, with no inheritance
+-- from the workspace.
+---
+
+	function suite.fetch_fileScope_withoutInheritance()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		project('MyProject')
+		defines { 'PROJECT' }
+		filter { 'files:**.c' }
+		defines { 'FILE' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace', projects='MyProject' }, { files='hello.c' })
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'FILE' }, result)
+	end
+
 
 ---
 -- Fetching a list value using an open filter should inherit values from the
 -- outer scope(s), while ignoring inner scopes.
 ---
 
-	function suite.fetch_mergesLists_fromWorkspaceScope()
+	function suite.fetch_mergesLists_fromWorkspaceScope_usingOpenFilter()
 		defines { 'GLOBAL' }
 		workspace('MyWorkspace')
 		defines { 'WORKSPACE' }
@@ -148,13 +219,12 @@
 	end
 
 
-
 ---
 -- Fetching a list value using a closed filter should only include values
 -- from that specific scope.
 ---
 
-	function suite.fetch_mergesLists_fromWorkspaceScope()
+	function suite.fetch_mergesLists_fromWorkspaceScope_onClosedFilter()
 		defines { 'GLOBAL' }
 		workspace('MyWorkspace')
 		defines { 'WORKSPACE' }
@@ -165,4 +235,112 @@
 
 		local result = query.fetch(qry, 'defines')
 		test.isequal({ 'WORKSPACE' }, result)
+	end
+
+
+---
+-- Blocks with criteria that aren't met by the query or the data
+-- should be ignored.
+---
+
+	function suite.fetch_ignoresBlocksWithUnmatchedCriteria()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		filter { 'configurations:Debug' }
+		defines { 'DEBUG' }
+
+		qry = query.filter(qry, { workspaces='MyWorkspace' }, {})
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL', 'WORKSPACE' }, result)
+	end
+
+
+---
+-- Blocks with conflicting conditions should be ignored.
+---
+
+	function suite.fetch_ignoresBlocksWithMismatchedScopes()
+		defines { 'GLOBAL' }
+		workspace('MyWorkspace')
+		defines { 'WORKSPACE' }
+		filter { 'configurations:Debug' }
+		defines { 'DEBUG' }
+
+		qry = query.filter(qry, { workspaces='MyOtherWorkspace' }, {})
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL' }, result)
+	end
+
+
+---
+-- Should be able to remove values set at the global scope.
+---
+
+	function suite.fetch_removes_fromGlobalScopes()
+		defines { 'A', 'B', 'C' }
+		removedefines { 'B' }
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A', 'C' }, result)
+	end
+
+
+---
+-- Should be able to remove values using wildcards.
+---
+
+	function suite.fetch_removes_withWildcard()
+		defines { 'DEBUG_DLL', 'DEBUG_LIB' }
+		removedefines { '*_LIB' }
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'DEBUG_DLL' }, result)
+	end
+
+
+---
+-- Values that are set at a general scope, and then removed at a more
+-- specific scope, should not appear at the general scope.
+---
+
+	function suite.fetch_removes_considersMoreSpecificScopes()
+		defines { 'GLOBAL', 'WORKSPACE', 'PROJECT', 'FILE' }
+		workspace('MyWorkspace')
+		removedefines { 'WORKSPACE' }
+		project('MyProject')
+		removedefines { 'PROJECT' }
+		filter { 'files:**.c' }
+		removedefines { 'FILE' }
+
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'GLOBAL' }, result)
+	end
+
+
+---
+-- If a value is removed from only one of several sibling scopes, the
+-- query should include the value only that sibling, and not the others.
+---
+
+	function suite.fetch_removes_onlyFromMostSpecifcScope()
+		defines { 'A', 'B', 'C' }
+		workspace('Workspace1')
+		workspace('Workspace2')
+		removedefines('B')
+		workspace('Workspace3')
+
+		qry = query.filter(qry, { workspaces='Workspace1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A', 'B', 'C' }, result)
+
+		qry = query.filter(qry, { workspaces='Workspace2' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A', 'C' }, result)
+
+		qry = query.filter(qry, { workspaces='Workspace3' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A', 'B', 'C' }, result)
 	end

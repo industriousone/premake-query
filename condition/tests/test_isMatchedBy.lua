@@ -11,7 +11,22 @@
 
 
 ---
--- Should return false if a term required by the condition can't be matched against
+-- A condition with no clauses should always match.
+---
+
+	function suite.isMatchedBy_returnsTrue_onNoClauses()
+		local data = {}
+		local open = {}
+		local closed = {}
+
+		local cnd = condition.new({})
+		test.istrue(condition.isMatchedBy(cnd, data, open, closed))
+	end
+
+
+
+---
+-- Should return false if a term required by the condition can't be matched by
 -- any of the data sources.
 ---
 
@@ -25,6 +40,10 @@
 	end
 
 
+
+---
+-- Should return true if a matching value is found in any data source.
+---
 
 	function suite.isMatchedBy_returnsTrue_onClosedTermMatch()
 		local data = {}
