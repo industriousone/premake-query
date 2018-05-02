@@ -13,6 +13,17 @@
 	local m = {}
 
 
+	m.simpleFieldTypes = {
+		['boolean'] = true,
+		['directory'] = true,
+		['file'] = true,
+		['integer'] = true,
+		['mixed'] = true,
+		['number'] = true,
+		['path'] = true,
+		['string'] = true,
+	}
+
 
 ---
 -- Retrieve a field by name. If no such field exists, synthesize a simple
@@ -52,6 +63,16 @@
 		return value
 	end
 
+
+
+---
+-- Returns true if the field uses a simple (not a collection) data type.
+---
+
+	function m.isSimpleType(self)
+		local value = m.simpleFieldTypes[self._kind]
+		return value
+	end
 
 
 ---

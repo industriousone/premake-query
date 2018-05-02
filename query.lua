@@ -55,6 +55,18 @@
 
 
 ---
+-- With this approach, any simple (non-list) field can be used in a filter.
+---
+
+	for fld in p.field.each() do
+		if field.isSimpleType(fld) then
+			criteria._validPrefixes[fld.name] = true
+		end
+	end
+
+
+
+---
 -- Construct a new Query object.
 --
 -- Queries are evaluated lazily. They are cheap to create and extend.
