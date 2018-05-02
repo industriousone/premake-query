@@ -344,3 +344,45 @@
 		local result = query.fetch(qry, 'defines')
 		test.isequal({ 'A', 'B', 'C' }, result)
 	end
+
+
+---
+-- Should be able to filter against simple (non-list) field values that were
+-- previously set in an earlier configuration block.
+---
+
+	function suite.fetch_onArbitraryField_previouslySet()
+		workspace('Workspace1')
+		project('Project1')
+		kind('SharedLib')
+		filter { 'kind:SharedLib' }
+		defines('SHAREDLIB')
+		filter { 'kind:StaticLib' }
+		defines('STATICLIB')
+
+		qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'SHAREDLIB' }, result)
+	end
+
+
+
+
+---
+-- Should be able to filter against simple (non-list) field values that were
+-- not available for filtering in the previous system.
+---
+
+function suite.fetch_onArbitraryField_previouslyIncompatible()
+	workspace('Workspace1')
+	project('Project1')
+	optimize('Speed')
+	filter { 'optimize:Speed' }
+	defines('FAST')
+	filter { 'optimize:Size' }
+	defines('SIZE')
+
+	qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+	local result = query.fetch(qry, 'defines')
+	test.isequal({ 'FAST' }, result)
+end
