@@ -351,7 +351,7 @@
 -- previously set in an earlier configuration block.
 ---
 
-	function suite.fetch_onArbitraryField_previouslySet()
+	function suite.fetch_onArbitrarySimpleField_previouslySet()
 		workspace('Workspace1')
 		project('Project1')
 		kind('SharedLib')
@@ -366,23 +366,63 @@
 	end
 
 
-
-
 ---
 -- Should be able to filter against simple (non-list) field values that were
 -- not available for filtering in the previous system.
 ---
 
-function suite.fetch_onArbitraryField_previouslyIncompatible()
-	workspace('Workspace1')
-	project('Project1')
-	optimize('Speed')
-	filter { 'optimize:Speed' }
-	defines('FAST')
-	filter { 'optimize:Size' }
-	defines('SIZE')
+	function suite.fetch_onArbitrarySimpleField_previouslyIncompatible()
+		workspace('Workspace1')
+		project('Project1')
+		optimize('Speed')
+		filter { 'optimize:Speed' }
+		defines('FAST')
+		filter { 'optimize:Size' }
+		defines('SIZE')
 
-	qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
-	local result = query.fetch(qry, 'defines')
-	test.isequal({ 'FAST' }, result)
-end
+		qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'FAST' }, result)
+	end
+
+
+---
+-- Should be able to filter against collection field values that were previously
+-- set in an earlier configuration block.
+---
+
+	function suite.fetch_onArbitraryCollectionField_previouslySet()
+		workspace('Workspace1')
+		project('Project1')
+		tags { 'a1', 'a2', 'b1' }
+		filter { 'tags:a2' }
+		defines('A2')
+
+		qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A2' }, result)
+	end
+
+	function suite.fetch_onArbitraryCollectionField_onMismatch()
+		workspace('Workspace1')
+		project('Project1')
+		tags { 'a1', 'a2', 'b1' }
+		filter { 'tags:b2' }
+		defines('B2')
+
+		qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({}, result)
+	end
+
+	function suite.fetch_onArbitraryCollectionField_previouslyIncompatible()
+		workspace('Workspace1')
+		project('Project1')
+		defines { 'A1', 'A2' }
+		filter { 'defines:A2' }
+		defines('X2')
+
+		qry = query.filter(qry, { workspaces='Workspace1', projects='Project1' })
+		local result = query.fetch(qry, 'defines')
+		test.isequal({ 'A1', 'A2', 'X2' }, result)
+	end

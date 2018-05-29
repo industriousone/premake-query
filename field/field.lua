@@ -26,14 +26,38 @@
 
 
 ---
+-- The current configset code assumes that containers do not have a field instance to
+-- represent, and will break if it encounters one. Only return container field instances
+-- to the new code.
+---
+
+	m.containerFieldNames = {}
+
+	local function remapContainerClasses(parentClass)
+		for childClass in p.container.eachChildClass(parentClass) do
+			local name = childClass.pluralName
+			m.containerFieldNames[name] = '_container_' .. name
+			remapContainerClasses(childClass)
+		end
+	end
+
+	remapContainerClasses(p.global)
+
+
+
+---
 -- Retrieve a field by name. If no such field exists, synthesize a simple
 -- assignment-only field on the fly.
 ---
 
 	function m.get(name)
+		-- Remap container names to avoid breaking older code
+		-- TODO: Get rid of this once everything has migrated to new approach
+		name = m.containerFieldNames[name] or name
+
 		local field = p.field.get(name)
 
-		if field == nil then
+		if field == nil and not m.containerFieldNames[name] then
 			field = p.field.new({
 				name = name,
 				scope = 'config',
@@ -73,6 +97,30 @@
 		local value = m.simpleFieldTypes[self._kind]
 		return value
 	end
+
+
+
+---
+-- Check to see if the provided pattern matches any of the provided
+-- field values.
+--
+-- TODO: This should delegate out to a field type implementation. But
+-- for now, just try to handle things in a general way.
+---
+
+	function m.matches(self, values, pattern)
+		if type(values) == 'table' then
+			local n = #values
+			for i = 1, n do
+				if values[i]:match(pattern) then
+					return true
+				end
+			end
+		else
+			return values:match(pattern)
+		end
+	end
+
 
 
 ---

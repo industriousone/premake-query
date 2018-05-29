@@ -19,7 +19,6 @@
 	local clause = dofile('./clause.lua')
 
 
-
 ---
 -- Construct a new Condition object from a list of filtering clauses.
 --
@@ -32,8 +31,8 @@
 		local clauses = {}
 
 		for key, patterns in pairs(filter or {}) do
-			local cl = clause.new(key, patterns)
-			clauses[cl.key] = cl
+			local c = clause.new(key, patterns)
+			clauses[c.key] = c
 		end
 
 		local self = {
