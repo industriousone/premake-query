@@ -13,22 +13,10 @@
 	local m = {}
 
 
-	m.simpleFieldTypes = {
-		['boolean'] = true,
-		['directory'] = true,
-		['file'] = true,
-		['integer'] = true,
-		['mixed'] = true,
-		['number'] = true,
-		['path'] = true,
-		['string'] = true,
-	}
-
-
 ---
 -- The current configset code assumes that containers do not have a field instance to
--- represent, and will break if it encounters one. Only return container field instances
--- to the new code.
+-- represent them, and will break if it encounters one. Only return container field
+-- instances to the new code.
 ---
 
 	m.containerFieldNames = {}
@@ -90,12 +78,36 @@
 
 
 ---
--- Returns true if the field uses a simple (not a collection) data type.
+-- Return true if `name` is a valid field name.
 ---
 
-	function m.isSimpleType(self)
-		local value = m.simpleFieldTypes[self._kind]
-		return value
+	function m.isFieldName(name)
+		if p.field._list[name] or p.field._loweredList[name:lower()] then
+			return true
+		end
+		return false
+	end
+
+
+
+---
+-- Does this field support pattern matching against its values? If so, the
+-- `field.matches()` method can be used, and the field can be used in filters.
+---
+
+	function m.isMatchable(self)
+		local kinds = string.explode(self._kind, ':', true, 2)
+		local kind = kinds[1]
+
+		if kind == 'list' then
+			kind = kinds[2]
+		end
+
+		if kind == 'list' or kind == 'table' or kind == 'keyed' then
+			return false
+		end
+
+		return true
 	end
 
 

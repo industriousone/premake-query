@@ -426,3 +426,27 @@
 		local result = query.fetch(qry, 'defines')
 		test.isequal({ 'A1', 'A2', 'X2' }, result)
 	end
+
+
+---
+-- Filters should fail if they specify a non-existant field.
+---
+
+	function suite.filter_fails_onNoSuchField()
+		local ok, err = pcall(function ()
+			filter { 'nosuchfield:value' }
+		end)
+		test.isfalse(ok)
+	end
+
+
+---
+-- Filters should fail if they specify a field that does not support pattern matching.
+---
+
+	function suite.filter_fails_onNoPatternMatchingSupport()
+		local ok, err = pcall(function ()
+			filter { 'vpaths:value' }
+		end)
+		test.isfalse(ok)
+	end
