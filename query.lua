@@ -55,14 +55,28 @@
 
 
 ---
--- With this approach, any simple (non-list) field can be used in a filter.
+-- With this new approach, almost all fields can be used in block filters.
 ---
 
-	for fld in p.field.each() do
-		if field.isSimpleType(fld) then
-			criteria._validPrefixes[fld.name] = true
+	criteria._validPrefixes = {}
+	setmetatable(criteria._validPrefixes, {
+		__index = function(tbl, key)
+			local result = true
+
+			if not field.isFieldName(key) then
+				result = false
+			else
+				local fld = field.get(key)
+				result = field.isMatchable(fld)
+			end
+
+			rawset(tbl, key, result)
+			return result
+		end,
+
+		__newindex = function(tbl, key, value)
 		end
-	end
+	})
 
 
 

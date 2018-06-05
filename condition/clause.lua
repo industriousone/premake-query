@@ -10,6 +10,9 @@
 
 	local m = {}
 
+	-- TODO: Drop the path, once field module is available in core
+	local field = require(path.join(_SCRIPT_DIR, '../field'))
+
 	local cache = {}
 
 
@@ -36,6 +39,7 @@
 
 		local clause = {}
 		clause.key = key
+		clause.field = field.get(key)
 		clause.rule = rule
 
 		return clause
@@ -49,9 +53,10 @@
 
 	function m.test(self, value)
 		local rule = self.rule
+		local fld = self.field
 
 		for _, pattern in ipairs(rule.patterns) do
-			if value:match(pattern) then
+			if field.matches(fld, value, pattern) then
 				return true
 			end
 		end
